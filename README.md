@@ -8,7 +8,7 @@ Statistical report and code for the publication *Morning Administration Enhances
 
 This page shows an HTML report (with tables and figures) as well as raw R code (.qmd file).
 
-To explore the report, download the html file and open it in your browser. You can download it by clicking on the file and then clicking on 'download raw file' (icon for downloading on the right)
+To explore the report, see https://filip-tichanek.github.io/CovidTimeRTX/
 
 ### Authors and affiliations 
 
