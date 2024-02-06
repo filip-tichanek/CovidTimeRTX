@@ -1,0 +1,2419 @@
+---
+title: "Morning Administration Enhances Humoral Response to SARS-CoV-2 Vaccination in Kidney Transplant Recipients"
+subtitle: "Statistical report"
+author: "Ivan Zahradka, Filip Tichanek, Maria Magicova, Istvan Modos, Ondrej Viklicky, Vojtech Petr"
+format: 
+  html:  
+    embed-resources: true
+    keep-md: false
+    toc: true
+    toc-expand: 2
+    toc-depth: 4
+    toc-location: left
+    number-sections: true
+    number-depth: 4
+    code-fold: show
+    code-tools: true
+    code-summary: "Open code"
+    grid: 
+      body-width: 1000px
+      sidebar-width: 600px
+      margin-width: 100px
+editor: source
+project:
+  type: default
+  output-dir: output
+theme: darkly
+highlight-style: github-dark
+fontsize: 12 px
+code-block-bg: "#2D2D31"
+bibliography: references.bib
+fontcolor: "#F5F5F5"
+monobackgroundcolor: "#3B3B3B"
+---
+
+------------------------------------------------------------------------
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(collapse = TRUE)
+```
+
+
+```{css, echo=FALSE}
+code.sourceCode {
+  font-size: 0.85em;
+  border: 1px solid #ffffff; /* White border */
+  padding: 20px; /* Add padding for better visibility */
+}
+
+code{
+    color: #EEE8AA; /* Change the color value as needed */
+}
+
+.equation {
+  text-align: center;
+  display: block;
+  margin: auto;
+}
+
+body {
+  text-align: justify;
+}
+```
+
+------------------------------------------------------------------------
+
+**Authors' affiliations**:
+
+[Ivan Zahradka^1^, Filip Tichanek^2^, Maria Magicova^1^, Istvan Modos^2^, Ondrej Viklicky^1^, Vojtech Petr^1^ ]{style="font-size: larger;"}
+
+^1^Department of Nephrology, Transplantation Center
+
+^2^Department of Data Science
+
+Institute for Clinical and Experimental Medicine, Prague, Czech Republic
+
+<br>
+
+This is statistical report of the study that is currently *provisionally accepted* at the [*American Journal of TRANSPLANTATION*](https://onlinelibrary.wiley.com/journal/16006143)
+
+<br>
+
+Original GitHub repository: <https://github.com/filip-tichanek/CovidTimeRTX>
+
+------------------------------------------------------------------------
+
+# Introduction
+
+This project aims to evaluate whether the timing of anti-COVID-19 mRNA vaccine administration (Pfizer or Moderna) affects the probability of seroconversion ($IgG \geq 9.5 kAU/L$) in Kidney Transplant Receivers (KTR). The project has been inspired by a study exploring the same phenomenon in hemodialysis patients by *Lin and Hung* in 2023 [@lin2023].
+
+All patients received two vaccine doses, with a time interval of 20-29 days between the doses. The impact of timing was evaluated for both the first and second doses. Seroconversion measurements were conducted upon the completion of the full vaccination regimen, specifically after the administration of the second dose.
+
+The impact of vaccination timing was adjusted to account for other covariates known to influence the probability of anti-COVID seroconversion in the population of renal failure patients [@lin2023] or KTRs [@magicova2022].
+
+The study population comprises COVID-naive patients who have undergone kidney transplantation, with varying durations between the transplantation and anti-COVID vaccination. Inclusion criteria stipulated that only patients receiving two doses of mRNA vaccine in our institution, with a time interval between the two doses ranging from 20 to 29 days, were considered (a total of 553 patients).
+
+As the time between the 2nd dose and blood sampling differed across patients, the time between the 2nd dose and blood collection (for IgG measurements) was also adjusted. Thus, it was included as a covariate with non-linear effect.
+
+Timings of vaccinations were primarily treated as continuous numerical variable. Final models were fitted with Bayesian framework using 'brms' R package [@brms], with all continuous variables standardized by 2 SD (as recommended by Gelman [@gelman2008]).
+
+<br>
+
+Everything was done in R, version 4.3.2[@Rcomp]
+
+<br>
+
+## Variables recorded
+
+We recorded predictors shown to affect the probability of seroconversion after mRNA anti-Covid vaccines in the population of patients with renal dysfunction [@lin2023] and KTR [@magicova2022], plus few other covariates that we considered to be important for our specific context. These include:
+
+<br>
+
+*Outcomes*
+
+-   SARS-CoV-2 IgG antibody level ($AU/ml$), `antibody_level`. This does not serve as the primary outcome due to its non-normal distribution and the presence of values beyond detection limits (lower limit: 3.6 AU/ml, upper limit: 8000 AU/ml). Instances below the detection limits are denoted as "0," while values surpassing the limits are represented as "8000." However, it is employed as the outcome in sensitivity analysis, specifically in the `model_quantile`. In this analysis, median values of log2\[`antibody_levels`\] were modeled using quantile regression, and values beyond detection limits were substituted with 2/3 and 3/2 of the minimum and maximum values, respectively.
+
+-   `seroconversion`: $IgG > 9.5$ (0/1)
+
+-   `seroconversion2`: alternative definition of `seroconversion`, showing if the `antibody_level` is above detection limit, $IgG > 3.6$ (0/1). It is used for sensitivity analysis examining robustness of the results when the definition of seroconversion changes.
+
+<br>
+
+*Main predictors*
+
+-   time of the 1st dose of the antiCovid vaccine: continuous time in hours unit (`vacc_time_cont`). In Bayesian models, continuous time was included as a variable standardized by 2 standard deviations (SD), `vacc_time_scal`
+
+-   time of the 2nd dose of the antiCovid vaccine: continuous time in hours unit (`vacc_time_2nd_cont`). In Bayesian models, continuous time was included as a variable standardized by 2 standard deviations (SD), `vacc_time2_scal`
+
+For sensitivity analysis, we used dichotomized time of vaccine administration, `afternon1` for the 1st and `afternoon2` for the 2nd vaccination dose. The threshold for the `afternoon` was set to either 12pm or 1pm.
+
+<br>
+
+*Other covariates*
+
+-   Moderna vaccine: 0: Phizer, 1: Moderna, `vaccine_moderna`
+
+-   calcineurin inhibitors use (0/1), `calcineurin_inhibitor`. his variable originated from two distinct variables, namely `tacrolimus` and `ciclosporinA`, which were later merged into a single variable.
+
+-   steroids use (0/1), `steroids`
+
+-   time between renal transplantation and blood collection (for IgG measurement) in months, `months_afterTX`
+
+-   time between 2nd dose and blood sampling (in days), fitted as a predictor with non-linear effect, `days_after_2nd_dose`
+
+-   sex (0: female, 1: male), `sex`
+
+-   eGFR prior vaccination ($mL/min/1.73m^2$) `EGFR_vaccination`
+
+-   mycophenolate mofetil or mycophenolic acid use (0/1), `mmf_mpa`
+
+-   depleting therapy in the last year (0/1), `depletationTreat_year`
+
+-   body mass index, `bmi`
+
+-   serum Albumin ($g/L$), `Albumine`
+
+-   lymphocytes ($10^9/L$), included to models in log-transformed form, `Lymphocytes`
+
+-   diabetes mellitus diagnosis (0/1), `DM`
+
+We primarily fitted a full model that included all the above-mentioned covariates.
+
+<br>
+
+Additional variables have also been recorded. While not automatically included in the final models, we ensured that their omission does not compromise the accuracy of the models. Alternatively, we utilized them to provide a broader overview of patients' characteristics. These are: `IgG_after_time` (time of the blood sampling the measurement of SARS-CoV-2 IgG), `sample_Lym_days` (time distance between blood sampling for lymphocytes and sampling for IgG \[days prior sampling for IgG\]), `Lymphocytes_time` (time of blood sampling for lymphocytes count evaluation, in hours), `tacrolimus_level` (µg/l in serum, measured in patients taking tacrolimus), `cyclospirin_level` (µg/l in serum, measured in patients taking ciclosporin A), `mTOR` use (0/1), `mmf_dose` (dose of mycophenolate mofetil \[***MMF***\]. If mycophenolic acid \[***MPA***, mg\] was used instead, we standardize its amount to MMF so that MPA dose was multiplied accordingly $MMF = MPA * (250/180)$). `mmf_total` is as `mmf_dose` but NA values are replaced for '0'
+
+<br>
+
+## Exploratory models
+
+Exploratory models were fitted model in frequentist framework using 'mgcv' package[@mgcv]. Firstly, we evaluated the importance of a possible interaction between the two doses of vaccination. Comparisons of models via AIC and BIC did not show any evidence that the interaction improves out-of-sample predictive accuracy. Thus, the interaction (`vacc_time_scal : vacc_time2_scal`) was not included in the final models.
+
+We used generalized additive models to explore possible non-linear relationship between seroconversion and vaccination times. However, as we observed straight lines, the effects of vaccination times (`vacc_time_scal`, `vacc_time2_scal`) were fitted as predictors with linear effects.
+
+We predicted that the time elapsed between vaccination and blood collection (`days_after_2nd_dose`) could have a non-linear impact on seroconversion. Our initial GAM models supported this idea. To address this non-linear effect, we included it as a predictor with non-linear effect using a thin-plate spline limited to 4 knots.
+
+We also investigated if adding more details could improve how well the model predicts outcomes. Specifically, we looked at factors like the `mmf_dose`, `cyclosporin_level` or `tacrolimus_level`, and their interactions with `mmf_mpa`, `ciclosporinA` or `tacrolismus`. We assessed the impact on predictive accuracy using Akaike (AIC) or Bayesian (BIC) information criteria. Considering `mTOR`'s role in circadian rhythms, we explored if there's a significant interaction with vaccination time. Additionally, considering the circadian rhythmicity of IgG levels, we ensured that the results were not confounded by the time of blood sampling (`IgG_after_time`) for measuring SARS-CoV-2 IgG antibody levels.
+
+<br>
+
+## Bayesian analysis and prior distribution
+
+We decided to use the Bayesian approach as it enables to directly incorporate external knowledge to statistical models (in the form of so-called *prior*). Since the effect of morning vaccination on seroconversion has been already reported in hemodialysis patients [@lin2023], another vulnerable group of patients, we believe that employing a methodology that takes these insights into account can contribute to more informed inferences.
+
+The *prior*, or *prior probability distribution*, reflects our initial beliefs about model parameters (especially odds ratios in this study) before seeing any data. When using Gaussian zero-effect-centered priors, we give the highest probability to the possibility of zero effect. This choice makes our estimates more conservative, leaning towards smaller effects.
+
+Similarly, if we incorporate external knowledge, like insights from a previous study on a similar topic, we adjust our estimates to align with already gained information. This means the results of the earlier study guide our model, incorporating past insights and modifying our estimates accordingly. It's a way to integrate what we already know into our current analysis.
+
+Mathematically, $P(\beta | \mathbf{X}, Y)$ is proportional to the product of the prior distribution $P(\beta)$ and the likelihood $P(Y | \mathbf{X}, \beta)$:
+
+$$ 
+P(\beta | \mathbf{X}, Y) \propto P(Y | \mathbf{X}, \beta) \times P(\beta)
+$$
+
+<br>
+
+Before fitting Bayesian models, we standardized all numerical predictors by 2 standard deviations (SD). This ensures that all predictors are on the same scale, allowing the establishment of a uniform *prior* for all predictors and ensuring a consistent level of shrinkage for each one [@gelman2008].
+
+*Priors* for all variables except vaccination timing were established as Gaussian priors centered around zero effect, $\mu = 0$, and with $\sigma = 5$. For the effect of vaccination timing, we drew guidance from recent findings by [@lin2023], who reported a 3.81-fold increase in seroconversion odds (95% CI: 1.59 to 9.15) on the 28th day post-vaccination and a 2.54-fold increase (CI: 1.15 to 5.61) on the 56th day post-vaccination for morning vaccinations, on patients with renal failure.
+
+Considering the average and median interval between the 2nd vaccine dose and blood collection in our patient group (mean 50, median 47 days), we adopted the estimate for the 56th day post-vaccination as our prior.
+
+As 2 SD of continuous vaccination time in our study is similar to the difference between the mean times of vaccination in the morning vs. afternoon (with the threshold set either to 12 pm or 1 pm), we expect that similar distribution may be present also in the previous study [@lin2023] that was used for setting the *prior*.
+
+To account for uncertainty effectively, we selected a sigma value 5 times the standard error of the estimate on the logit scale. Thus the prior for the 2SD-standardized vaccination times (`vacc_time_scal`, `vacc_time2_scal`) can be expressed as $normal(\mu, \sigma)$, where
+
+$$\mu = -\beta_{morning}$$
+
+$$\sigma = SE[\beta_{morning}] * 5$$
+
+with $\beta_{morning}$ being estimated morning effect from [@lin2023], 56th days post-vaccination, in log\[Odds Ratio\], and $SE[\beta_{morning}]$ being standard error of estimated morning effect according to [@lin2023].
+
+In our perspective, this prior acknowledges differences in our study population and design but still navigate the posterior distribution to the results which are likely (given the previous study), balancing informed inference with inherent variability.
+
+Specifically, for `vacc_time_scal` and `vacc_time2_scal`, prior was set to $\mu = -0.9$ and $\sigma = 2$.
+
+When we used dichotomized time for a sensitivity analysis (`afternoon1` and `afteroon2`), prior has $\mu = 0.9$ (exactly as estimated by [@lin2023]) and again $\sigma = SE[\beta_{morning}] * 5$
+
+<br>
+
+As we used 'brms' package[@brms], employing Stan software for probabilistic sampling [@stan], the model was estimated using *Hamiltonian Monte Carlo* sampling (this is Markov Chain Monte Carlo - MCMC - algorithm used for sampling from complex probability distributions, particularly effective in high-dimensional spaces). We use 6,000 iterations for each of 3 chains. From these, 2,000 are warm-ups, so *posterior distributions* are described by 12,000 posterior draws in total.
+
+For each model, we present summary tables containing crucial details concerning the model's convergence. The parameter `rhat` denotes the autocorrelation of posterior samples and ideally holds a value of 1.00. Additionally, we ensure an ample number of posterior draws, with `Bulk_ESS` and `Tail_ESS` both exceeding 1,000 to 2,000 for reliable results.
+
+Next, we show effect size for each predictors. Take into account that **continuous covariates/predictors were transformed by 2 standard deviations**. Effect sizes are thus comparable.
+
+<br>
+
+## Sensitivity analyses
+
+Several sensitivity analyses were conducted to assess the robustness of our findings:
+
+-   ***Model Specification Sensitivity Analysis*** (Model: `model_reduced`): The original model was refitted with reduced covariate adjustments, incorporating only 'important' covariates identified in Table 1. Specifically, variables differing between seropositive and seronegative patients were included.
+
+-   ***Prior Sensitivity Analysis*** (`model_uniprior`): To evaluate the impact of prior specifications, the original model was refitted using zero-effect-centered non-informative priors ($\mu = 0$, $\sigma = 5$) for all predictors including vaccination times.
+
+-   ***Seroconversion Threshold Sensitivity Analysis*** (`model_seroconversion_min`): The used an alternative definition of seroconversion (`seroconversion2`), defined as IgG levels exceeding the minimum detectable level of SARS-CoV-2 IgG ($\text{IgG} > 3.6 , \text{AU/ml}$).
+
+-   ***Dichotomized Vaccination Time Analysis***:
+
+    -   `model_dichotomized_12`: Dichotomized vaccination times were used using a threshold of 12 pm.
+    -   `model_dichotomized_13`: Another analysis was performed with a threshold of 1 pm.
+
+-   ***Quantile Regression Analysis*** (`model_quantile`): Median IgG levels (log2-transformed) were modeled using quantile regression (within frequentist framework). Values of `antibody_level` below or above detection limits were replaced with 2/3 and 3/2 of the lower and upper bound of detectable range respectively.
+
+# Analysis
+
+## Packages and functions
+
+```{r, collapse=TRUE}
+if (T) {rm(list = ls() )}
+if (T) { 
+  suppressWarnings(suppressMessages({
+    library(tidyverse)
+    library(stringr)
+    library(ggpubr)
+    library(emmeans)
+    library(gtsummary)
+    library(car)
+    library(sjPlot)
+    library(flextable)
+    library(openxlsx)
+    library(mgcv)
+    library(pROC)
+    library(cowplot)
+    library(boot)
+    library(glmnet)
+    library(brms)
+    library(projpred)
+    library(RJDBC)
+    library(janitor)
+    library(arm)
+    library(corrplot)
+    library(lubridate)
+    library(kableExtra)    
+    library(ggdist)
+    library(bayesplot)
+    library(coxed)
+    library(quantreg)
+    library(ggbeeswarm)
+    
+    # Functions clashes
+    select <- dplyr::select
+    rename <- dplyr::rename
+    mutate <- dplyr::mutate
+    recode <- dplyr::recode
+    summarize <- dplyr::summarize
+    count <- dplyr::count
+    
+    # Simple math functions
+    logit <-function(x){log(x/(1-x))}
+    inv.logit <- function(x){exp(x)/(1+exp(x))}
+  }))
+}
+```
+
+### `run_model` function
+
+The function to load or run and save (if not done previously) models. It was copied from online proposal of Paul-Christian Bürkner.
+
+```{r, collapse=TRUE}
+
+run_model <- function(expr, path, reuse = TRUE) {
+      path <- paste0(path, ".Rds")
+      if (reuse) {
+        fit <- suppressWarnings(try(readRDS(path), silent = TRUE))
+        }
+      if (is(fit, "try-error")) {
+        fit <- eval(expr)
+        saveRDS(fit, file = path)
+        }
+      fit
+    }
+```
+
+### `p_dir` function
+
+The function calculates proportion of posterior probability behind specified threshold (argument `dir` set to `>` or `<`) or probability of direction (`dir` = `max`, as defined in Makowski et al., 2019 [@makowski2019] ). `data`: data frame containing posterior draws (in columns). `dir`: probability under/above threshold (value `>` or `<`) or probability of direction (`max`). `tres`: threshold (e.g. value of zero effect, i.e. "1" for odds ratio)
+
+```{r, collapse=TRUE}
+ p_dir <- function(data, dir, tres){
+      if(dir == 'max'){
+      return(
+        max(length(data[data>tres]),length(data[data<tres]))/length(data)
+        )
+      } else if(dir == '<'){
+      return(
+        length(data[data<tres])/length(data)
+        )
+      } else if(dir == '>'){
+               return(
+                 length(data[data>tres])/length(data)
+                 )
+      } else {print('ERROR')}
+    }
+```
+
+### `repor` function
+
+The function takes brms `model` with logit-link and reports *odds ratios* and their 95% credible intervals. If the variables were transformed with `rescale` function of the 'arm' package [@arm], the function clean the name of variables from redundant strings. If `labels` and `scals` are specified, the function will re-name all rows and transform the estimated effects and CI accordingly. The function prints `kableExtra` html table in default. If `nhtm = TRUE`, it is printed as data.frame
+
+```{r, collapse=TRUE}
+repor <- function(model, labels, scals, nhtm = FALSE){
+
+  df <- data.frame(
+    fixef(
+      model, probs = c(0.025, 0.975) )
+  ) %>% select(
+    -Est.Error)
+  
+  df <-  df %>% filter(
+      !str_detect(rownames(df), "srescale"),
+      !str_detect(rownames(df), "Intercept"))
+  
+  if(hasArg(labels) == TRUE){
+    labels = labels
+    for (i in 1:dim(df)[1] ){
+      rownames(df)[i] = labels[i]}
+
+    } else{
+      rownames(df) <- gsub(
+        'binary.inputsEQM0.50.5', '',
+        gsub(
+          'rescale', '', rownames(df)
+        )
+      ) 
+    }
+  
+  if(hasArg(scals) == TRUE){
+    scals = scals
+    for(i in 1:dim(df)[1]){
+      df[i,] <- df[i,] / scals[i] 
+      }
+  }
+  
+  df <- round(exp(df), 3)
+  
+  draw <- as.data.frame(model) %>% select(
+    matches('b_'), -b_Intercept) 
+  
+  df$PD <- rep(NA, dim(df)[1] )
+  
+  for (i in 1:dim(draw)[2])
+    df$PD[i] <-  round(p_dir(draw[,i], 'max', 0), 4)
+  
+  colnames(df)[1] = 'OR'
+  
+if(nhtm == TRUE){
+  df} else{kableExtra::kable(df)
+    }
+}
+```
+
+### `sca` and `inv.sca` functions
+
+Functions either standardize vector (`dat`) by specified `sd` and `mean` (the function `sca`), or provide its reverse (`inv.sca`)
+
+```{r, collapse=TRUE}
+sca <- function(dat, mean, sd) {
+  (dat - mean) / (2*sd)}
+
+inv.sca <- function(dat, mean, sd) {
+  (dat * (2*sd)) + mean }
+```
+
+## Data exploration
+
+### Import data
+
+Note that `antiboody_level` (*SARS-CoV-2 IgG antibody level \[AU/ml\]*) measurement has a detection limits, restricted within the interval (3.6, 8000). If the measured value is below the detection limit, we wrote 0, if it is above detection limit, we write 8000
+
+```{r, collapse=TRUE}
+findat2 <- read.table("data/table2.txt") 
+
+## changing unit of EGFR (from ml/s/1.73 m2 to ml/m/1.73 m2)
+findat2 <- findat2 %>% mutate(
+  EGFR_vaccination = EGFR_vaccination*60
+)
+
+summary(findat2)
+
+## mmf dose
+findat2$mmf_dose %>% as.factor() %>% table()
+```
+
+There are several variables that may have strongly right-tailed distribution, especially `antibody_level`
+
+Merging `tacrolimus` and `ciclosporin1` to a single variable, `calcineurin_inhibitor`
+
+```{r, collapse=TRUE}
+findat2$calcineurin_inhibitor <- findat2$tacrolimus + findat2$ciclosporinA
+```
+
+### Preparation of table for models
+
+Making `vacc_times` to be continuous variable
+
+```{r, collapse=TRUE}
+findat2 <- findat2 %>% mutate(
+  vacc_time_cont = as.numeric(seconds(hms(vacc_time)))/3600,
+  vacc_time_2nd_cont = as.numeric(seconds(hms(vacc_time_2nd)))/3600)
+
+```
+
+Defining `afternoon` as the time before 1 pm. There will be 2 variables, `afternoon1` indicating afternoon time of the 1st vaccine dose and `afternoon2` for the 2nd dose
+
+```{r, collapse=TRUE}
+# defining 'morning' time as the time before median vaccination time
+findat2 <- findat2 %>% mutate(
+  afternoon1 = if_else(vacc_time_cont > 13, 1, 0),
+  afternoon2 = if_else(vacc_time_2nd_cont > 13, 1, 0)) %>% 
+  mutate(afternoon_comb = interaction(afternoon1, afternoon2)) %>% 
+  mutate(afternoon_comb = recode(afternoon_comb, 
+         '1.1' = 'afternoon-afternoon',
+         '1.0' = 'afternoon-morning',
+         '0.1' = 'morning-afternoon',
+         '0.0' = 'morning-morning'),
+         mmf_total = as.numeric(if_else(mmf_mpa == 0, 0, mmf_dose)))
+```
+
+### Characteristics according to seroconversion, `table1`
+
+```{r, collapse=TRUE, warning=FALSE}
+labe <- list(
+          vacc_time_cont ~ '1st vaccination time [hours]', 
+          vacc_time_2nd_cont~ '2nd vaccination time [hours]',
+          antibody_level ~ 'SARS-CoV-2 IgG antibody level [AU/ml]',
+          days_after_2nd_dose~ 'Time after 2nd dose [days]',
+          months_afterTX~ 'Time after TX [months]',
+          age ~ 'Age [years]',
+          sex ~ 'Male sex [0/1]',
+          EGFR_vaccination ~ 'eGFR [mL/min/1.73 m2]',
+          mmf_mpa ~ 'MMF/MPA [0/1]',
+          depletationTreat_year ~ 'Depleting therapy [0/1]',
+          DM ~ 'Diabetes mellitus [0/1]',
+          BMI ~ 'BMI',
+          Albumine ~ 'Albumine [g/L]',
+          Lymphocytes ~ 'Lymphocyte counts [10^9/L]',
+          vaccine_moderna ~ 'Vaccine',
+          tacrolimus ~ 'Tacrolimus [0/1]',
+          ciclosporinA ~ 'CicloslorinA [0/1]',
+          calcineurin_inhibitor ~ 'Calcineurin inhibitor [0/1]',
+          steroids ~ 'Steroids [0/1]',
+          IgG_after_time ~ 'Blood sampling time for IgG [hours]',
+          #Lymphocytes_time ~ 'Blood sampling time of lymphocytes [hours]',
+          mmf_dose ~ 'MMF dose [mg]',
+          tacrolimus_level ~ 'Tacrolimus level [µg/l]',
+          cyclospirin_level ~ 'Ciclosporin level [µg/l]' 
+          )
+
+table1 <-  findat2 %>% select(vacc_time_cont,
+               vacc_time_2nd_cont,
+               antibody_level,
+               days_after_2nd_dose, 
+               months_afterTX,
+               age,
+               sex, 
+               EGFR_vaccination,
+               mmf_mpa, 
+               depletationTreat_year,  
+               DM, 
+               BMI, 
+               Albumine, 
+               Lymphocytes,
+               seroconversion,
+               vaccine_moderna,
+               tacrolimus,
+               ciclosporinA,
+               calcineurin_inhibitor,
+               steroids,
+               IgG_after_time,
+               #Lymphocytes_time,
+               mmf_dose,
+               tacrolimus_level,
+               cyclospirin_level
+               ) %>% mutate(
+  seroconversion = as.factor(seroconversion),
+  vaccine_moderna = if_else( vaccine_moderna == 1, 'Moderna', 'Phizer')
+  ) %>% tbl_summary(
+    label = labe,  
+    by='seroconversion',
+    type = list(mmf_dose ~ "continuous")) %>%
+  modify_caption("Table 1. Patient characteristics according to seroconversion") %>% 
+   add_p()
+
+table1
+```
+
+### Characteristics by dichotomized vaccination time, `suppl_table2`
+
+```{r, collapse=TRUE, warning=FALSE}
+labe <- list(
+          vacc_time_cont ~ '1st vaccination time [hours]', 
+          vacc_time_2nd_cont~ '2nd vaccination time [hours]',
+          antibody_level ~ 'SARS-CoV-2 IgG antibody level [AU/ml]',
+          days_after_2nd_dose~ 'Time after 2nd dose [days]',
+          months_afterTX~ 'Time after TX [months]',
+          age ~ 'Age [years]',
+          sex ~ 'Male sex [0/1]',
+          EGFR_vaccination ~ 'eGFR [mL/min/1.73 m2]',
+          mmf_mpa ~ 'MMF/MPA [0/1]',
+          depletationTreat_year ~ 'Depleting therapy [0/1]',
+          DM ~ 'Diabetes mellitus [0/1]',
+          BMI ~ 'BMI',
+          Albumine ~ 'Albumine [g/L]',
+          Lymphocytes ~ 'Lymphocyte counts [10^9/L]',
+          seroconversion ~ 'Seroconversion [0/1]',
+          vaccine_moderna ~ 'Vaccine',
+          tacrolimus ~ 'Tacrolimus [0/1]',
+          ciclosporinA ~ 'CicloslorinA [0/1]',
+          calcineurin_inhibitor ~ 'Calcineurin inhibitor [0/1]',
+          steroids ~ 'Steroids [0/1]',
+          IgG_after_time ~ 'Blood sampling time for IgG [hours]',
+          #Lymphocytes_time ~ 'Blood sampling time of lymphocytes [hours]',
+          mmf_dose~ 'MMF dose [mg]',
+          tacrolimus_level ~ 'Tacrolimus level [µg/l]',
+          cyclospirin_level ~ 'Ciclosporin level [µg/l]' 
+          )
+
+suppl_table2 <-  findat2 %>% select(vacc_time_cont,
+               vacc_time_2nd_cont,
+               antibody_level,
+               days_after_2nd_dose, 
+               months_afterTX,
+               age,
+               sex, 
+               EGFR_vaccination,
+               mmf_mpa, 
+               depletationTreat_year,  
+               DM, 
+               BMI, 
+               Albumine, 
+               Lymphocytes,
+               seroconversion,
+               vaccine_moderna,
+               tacrolimus,
+               ciclosporinA,
+               calcineurin_inhibitor,
+               steroids,
+               IgG_after_time,
+               mmf_dose,
+               tacrolimus_level,
+               cyclospirin_level,
+               afternoon_comb
+               ) %>% mutate(
+                 vaccine_moderna = if_else( vaccine_moderna == 1, 'Moderna', 'Phizer')
+                 ) %>% tbl_summary(label = labe,
+                                   type = list(mmf_dose ~ "continuous"),
+                                   by='afternoon_comb') %>%
+  modify_caption("Supplemetary Table 2. Patient characteristics according to dichotomized time of vaccination (1st dose - 2nd dose). Threshold for 'afternoon' was set to 1 pm") %>% 
+   add_p()
+
+suppl_table2
+```
+
+### Characteristics of continuous variables
+
+```{r, collapse=TRUE}
+sumtab <- findat2  %>% mutate(
+  log_Lymphocytes = log(Lymphocytes),
+    #  Making *vacc_times* to be continuous variable
+    # ! Note that the time will be in hours
+  vacc_time_cont = as.numeric(seconds(hms(vacc_time)))/3600,
+  vacc_time_2nd_cont = as.numeric(seconds(hms(vacc_time_2nd)))/3600  
+) %>% select(
+  c(months_afterTX, antibody_level,
+    days_after_2nd_dose, age, BMI,
+    EGFR_vaccination, Albumine, Lymphocytes, mmf_total,
+    log_Lymphocytes, 
+    vacc_time_cont,
+    vacc_time_2nd_cont,
+    IgG_after_time) ) %>% 
+  pivot_longer(cols = everything()) %>%
+  group_by(name) %>%
+  summarise(mean = mean(value) %>% round(2),
+            std = sd(value) %>% round(2), 
+            std_2x = 2*sd(value) %>% round(2), 
+            median = median(value) %>% round(2), 
+            Q1 = quantile(value, probs = c(0.25)) %>% round(2), # rozdil mezi 1. a 3. quartilem
+            Q3 = quantile(value, probs = c(0.75)) %>% round(2),
+            min = min(value) %>% round(2), 
+            max = max(value) %>% round(2)) 
+kableExtra::kable(sumtab) 
+```
+
+### Correlations between predictors
+
+```{r, collapse=TRUE, fig.height=8, fig.width=8}
+findat2 <- findat2 %>% mutate(
+   log_Lymphocytes = log(Lymphocytes)
+)
+
+cordat <- findat2 %>% select(vacc_time_cont,
+               vacc_time_2nd_cont,
+               antibody_level,
+               days_after_2nd_dose, 
+               months_afterTX,
+               age,
+               sex, 
+               EGFR_vaccination,
+               mmf_mpa, 
+               depletationTreat_year,  
+               DM, 
+               BMI, 
+               Albumine, 
+               Lymphocytes,
+               tacrolimus, 
+               ciclosporinA, 
+               steroids,
+               IgG_after_time
+               )
+
+sds <- findat2 %>% select(vacc_time_cont,
+               vacc_time_2nd_cont,
+               days_after_2nd_dose, 
+               months_afterTX,
+               age,
+               sex, 
+               EGFR_vaccination,
+               mmf_mpa, 
+               depletationTreat_year,  
+               DM, 
+               BMI, 
+               Albumine, 
+               Lymphocytes,
+               log_Lymphocytes) %>% summarise_all(sd)*2
+
+# correlations visually
+corrplot(cor(cordat, method='spearman'))
+
+# correlations in numbers
+cor(cordat, method='spearman') %>% round(2)
+```
+
+### Distribution of continuous variables
+
+```{r, collapse=TRUE, fig.height=12, fig.width=8}
+suppressMessages({ 
+  p1 <- findat2 %>% ggplot(aes(x = months_afterTX)) + geom_histogram() 
+  p2 <- findat2 %>% ggplot(aes(x = antibody_level)) + geom_histogram() 
+  p25 <- findat2 %>% ggplot(aes(x = log2(antibody_level+.1))) + geom_histogram() 
+  p3 <- findat2 %>% ggplot(aes(x = days_after_2nd_dose)) + geom_histogram() 
+  p4 <- findat2 %>% ggplot(aes(x = age)) + geom_histogram() 
+  p5 <- findat2 %>% ggplot(aes(x = BMI)) + geom_histogram() 
+  p6 <- findat2 %>% ggplot(aes(x = EGFR_vaccination ) ) + geom_histogram() 
+  p7 <- findat2 %>% ggplot(aes(x = Albumine ) ) + geom_histogram() 
+  p8 <- findat2 %>% ggplot(aes(x = Lymphocytes ) ) + geom_histogram() 
+  p8b <- findat2 %>% ggplot(aes(x = log_Lymphocytes ) ) + geom_histogram() 
+  p9 <- findat2 %>% ggplot(aes(x = vacc_time_cont) ) + geom_histogram()
+  p11 <- findat2 %>% ggplot(aes(x = vacc_time_2nd_cont) ) + geom_histogram()
+  p12 <- findat2 %>% ggplot(aes(x = IgG_after_time) ) + geom_histogram()
+  p13 <- findat2 %>% ggplot(aes(x = Lymphocytes_time) ) + geom_histogram()
+  p14 <- findat2 %>% ggplot(aes(x = tacrolimus_level) ) + geom_histogram()
+  p15 <- findat2 %>% ggplot(aes(x = cyclospirin_level) ) + geom_histogram()
+  ggpubr::ggarrange(p1, p2, p25, p3, p4, p5, p6, 
+                    p7, p8, p8b, p9, p11, 
+                    p12, p13, p14, p15) 
+  })
+```
+
+### Histogram of vaccination times (`suppl_fig2')
+
+Histograms show counts
+
+```{r, warning=FALSE, message=FALSE, fig.height=7, fig.width=7}
+cole <- c('#CD7006', '#0028F0')
+
+# Manually define the bin edges
+bin_edges <- c(seq(6.999, 17.499, by = 0.5))
+
+suppl_fig2count <- findat2 %>% 
+  select(seroconversion, vacc_time_cont, vacc_time_2nd_cont) %>% 
+  pivot_longer(cols = c(vacc_time_cont, vacc_time_2nd_cont),
+               names_to = 'dose',
+               values_to = 'time') %>% 
+  mutate(dose = if_else(dose == 'vacc_time_cont', '1st dose', '2nd dose'),
+         seroconversion = if_else(seroconversion == 1, 'Successful seroconversion', 
+                                  'Unsuccessful seroconversion')) %>%
+  ggplot(aes(x = time, fill = dose)) + 
+  geom_histogram(breaks = bin_edges, color = "grey50") +
+  facet_wrap(~ seroconversion + dose, nrow = 2) +
+  xlab("Vaccination time [hours]") +
+  ylab("Count") +
+  scale_fill_manual(values = cole)
+
+suppl_fig2count
+```
+
+An alternative - histograms show percentages of patients
+```{r, warning=FALSE, message=FALSE, fig.height=7, fig.width=7}
+cole <- c('#CD7006', '#0028F0')
+
+# Manually define the bin edges
+bin_edges <- c(seq(6.999, 17.499, by = 0.5))
+
+suppl_fig2a <- findat2 %>% 
+  select(seroconversion, vacc_time_cont, vacc_time_2nd_cont) %>% 
+  pivot_longer(cols = c(vacc_time_cont, vacc_time_2nd_cont),
+               names_to = 'dose',
+               values_to = 'time') %>% 
+  mutate(dose = if_else(dose == 'vacc_time_cont', '1st dose', '2nd dose'),
+         seroconversion = if_else(seroconversion == 1, 'Successful seroconversion', 
+                                  'Unsuccessful seroconversion')) %>%
+  mutate(count2 = if_else(seroconversion == 'Successful seroconversion', 
+                          212, 341)) %>% 
+  filter(seroconversion == 'Successful seroconversion') %>% 
+  ggplot(aes(x = time, fill = dose)) + 
+  geom_histogram(breaks = bin_edges, color = "grey50", 
+                 aes(y=stat(count)/2.12)) +
+  facet_wrap(~ dose+ seroconversion , nrow = 1) +
+  xlab("") +
+  ylab("% of patients") +
+  scale_fill_manual(values = cole)+ 
+ coord_cartesian(xlim = c(6.99, 17.5), ylim = c(0, 18))
+
+
+
+
+suppl_fig2b <- findat2 %>% 
+  select(seroconversion, vacc_time_cont, vacc_time_2nd_cont) %>% 
+  pivot_longer(cols = c(vacc_time_cont, vacc_time_2nd_cont),
+               names_to = 'dose',
+               values_to = 'time') %>% 
+  mutate(dose = if_else(dose == 'vacc_time_cont', '1st dose', '2nd dose'),
+         seroconversion = if_else(seroconversion == 1, 'Successful seroconversion', 
+                                  'Unsuccessful seroconversion')) %>%
+  mutate(count2 = if_else(seroconversion == 'Successful seroconversion', 
+                          212, 341)) %>% 
+  filter(seroconversion == 'Unsuccessful seroconversion') %>% 
+  ggplot(aes(x = time, fill = dose)) + 
+  geom_histogram(breaks = bin_edges, color = "grey50", 
+                 aes(y=stat(count)/3.41)) +
+  facet_wrap(~ dose + seroconversion, nrow = 1) +
+  xlab("Vaccination time [hours]") +
+  ylab("% of patients") +
+  scale_fill_manual(values = cole)+ 
+ coord_cartesian(xlim = c(6.99, 17.5), ylim = c(0, 18))
+
+
+prow <- plot_grid(
+  suppl_fig2a + theme(legend.position="none"),
+  suppl_fig2b + theme(legend.position="none"), ncol=1)
+
+legend_b <- get_legend(
+  suppl_fig2b + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "right")
+)
+
+suppl_fig2 <- plot_grid(prow, legend_b, ncol = 2, rel_widths = c(1, .2))
+suppl_fig2
+```
+
+
+
+### Histogram of antibody levels (`suppl_fig3')
+
+```{r, warning=FALSE, message=FALSE, fig.height=6, fig.width=4.3}
+suppl_fig3 <- findat2 %>% 
+  select(antibody_level, afternoon1, afternoon2, afternoon_comb, seroconversion) %>%
+  filter(antibody_level>9.5) %>%  
+  mutate(antibody_level = if_else(antibody_level == 0, 2.4, antibody_level),
+         seroconversion = factor(seroconversion)) %>% 
+  ggplot(aes(y=antibody_level)) + 
+  geom_boxplot(aes(x=seroconversion), outlier.shape = NA) +
+  geom_beeswarm(aes(x=seroconversion,dodge.width = 2), 
+               pch=1, cex= 3, size=2, alpha=0.8) + 
+  scale_y_continuous(trans = 'log10') +
+  ylab("SARS-CoV-2 IgG antibody level [AU/ml], log10-scale") +
+  ggtitle("IgG titers in patients with successful seroconversion") +
+  coord_cartesian(xlim=c(0.5, 1.5)) +
+  theme(plot.title = element_text(size = 11))
+
+suppl_fig3
+```
+
+Alternative
+```{r, warning=FALSE, message=FALSE, fig.height=7, fig.width=7}
+suppl_fig3_alt <- findat2 %>% 
+  select(antibody_level, afternoon1, afternoon2, afternoon_comb, seroconversion) %>%
+  filter(antibody_level>3) %>%  
+  mutate(antibody_level = if_else(antibody_level == 0, 2.4, antibody_level),
+         seroconversion = factor(seroconversion)) %>% 
+  ggplot(aes(y=antibody_level, color=seroconversion)) + 
+  geom_boxplot(aes(x=seroconversion), outlier.shape = NA) +
+  geom_beeswarm(aes(x=seroconversion), alpha=0.99, pch=1) + 
+  scale_y_continuous(trans = 'log10') +
+  ylab("SARS-CoV-2 IgG antibody level [AU/ml], log10-scale") +
+  ggtitle("IgG titers, exluding values under detection limit") +
+  geom_hline(yintercept = 3.6, color = "grey20", linetype = "dashed") +
+  annotate("text", x =  1, y = 3, label = "Detection limit", 
+            color = "grey20") 
+suppl_fig3_alt
+```
+
+
+
+
+
+## Explorative (non-Bayesian) models
+
+### Does interaction between two doses timings matter? `suppl_table1`
+
+```{r, collapse=TRUE}
+# no interaction
+model_all <- gam(seroconversion ~  
+               vacc_time_cont +
+               vacc_time_2nd_cont +
+              vaccine_moderna+calcineurin_inhibitor+steroids+
+               months_afterTX +  
+               s(days_after_2nd_dose, k=4) + 
+               age + 
+               sex + 
+               EGFR_vaccination   +
+               mmf_mpa + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes), 
+             data = findat2, 
+             family = binomial, method='ML')
+
+# with interaction
+model_all_int <- gam(seroconversion ~  
+               vacc_time_cont *
+               vacc_time_2nd_cont +
+              vaccine_moderna+calcineurin_inhibitor+steroids+
+               months_afterTX +  
+               s(days_after_2nd_dose, k=4) + 
+               age + 
+               sex + 
+               EGFR_vaccination   +
+               mmf_mpa + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes), 
+             data = findat2, 
+             family = binomial, method='ML')
+
+tab_model(model_all, 
+          model_all_int,
+          title = "Seroconversion in response to anti-COVID-19 mRNA vaccines at patients after kidney TX; continuous daytime",
+          dv.labels = "" ,show.intercept = FALSE)
+```
+
+Comparison of models
+
+```{r, collapse=TRUE}
+ai <- AIC( model_all, model_all_int)
+bi <- BIC(model_all, model_all_int)
+suppl_table1 <- round(cbind(ai, BIC=bi[,2]), 1)
+suppl_table1 <- kableExtra::kable(suppl_table1, caption = 
+      "Supplementary Table 1. Comparison of models including ('model_all_int') vs. ignoring ('model_all') interaction between the timings of the 1st and the 2nd doses of anti-Covid mRNA vaccination via Akaike information criterion (AIC) and Bayesian Information Criterion (BIC). Models were fitted with continuous (non-binarized) times of vaccination. Both AIC and BIC indicates out-of-sample predictive accuracy, with lower value indicating better predictive accuracy. As models with interaction have larger AIC and BIC values, interaction term seems to be redundant and will not be included to final models. See https://github.com/filip-tichanek/CovidTimeRTX for details")
+suppl_table1
+```
+
+Inclusion of interaction likely does not improve out-of-sample predictive accuracy and can be avoided
+
+### Is the time effect non-linear? `suppl_figure1`
+
+Lets look if inclusion of non-linear morning vaccination effect improve the fit and out-of-sample predictive accuracy
+
+```{r, collapse=TRUE}
+model_all_nl <- gam(seroconversion ~  
+               s(vacc_time_cont, k=4) +
+               s(vacc_time_2nd_cont, k=4) +
+              vaccine_moderna+calcineurin_inhibitor+steroids+
+               months_afterTX +  
+               s(days_after_2nd_dose, k=4) + 
+               age + 
+               sex + 
+               EGFR_vaccination   +
+               mmf_mpa + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes), 
+             data = findat2, 
+             family = binomial, method='ML')
+
+summary(model_all_nl)
+```
+
+No, penalized maximum likelihood shrunk the non-linear effects of vaccine administration times to a straight line. See plot
+
+```{r, collapse=TRUE, fig.width=8, fig.height=5}
+par(mfrow=c(1,3))
+par(mar=c(3,3,1,1))
+par(mgp=c(1.5,0.5,0))
+plot.gam(model_all_nl, ylab=c('Partial residuals'))
+```
+
+Non-linear effect was shrunk by penalized spline regression to straight line. Models with non-linear effect for `vacc_time_cont` and `vacc_time_2nd_cont` are thus exactly the same as when fitted as linear predictors. There is no reason to include timings of vaccine administration as non-linear effect.
+
+On the other hand, the effect of `days_after_2nd_dose` may be non-linear, although the evidence is not very strong
+
+### Does the time of blood sampling for the IgG levels measurements?
+
+Even the IgG levels may show circadian rhythms and the timing of the blood collection thus may matter.
+
+```{r, collapse=TRUE}
+model_all_st <- gam(seroconversion ~  
+               vacc_time_cont +
+               vacc_time_2nd_cont +
+              vaccine_moderna+calcineurin_inhibitor+steroids+
+               months_afterTX +  
+               s(days_after_2nd_dose, k=4) + 
+               age + 
+               sex + 
+               EGFR_vaccination   +
+               mmf_mpa + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes)+
+               IgG_after_time,
+             data = findat2, 
+             family = binomial, method = "ML")
+
+BIC(model_all, model_all_st)
+AIC(model_all, model_all_st)
+```
+
+There is no sign that time of blood sampling affects the probability of seroconversion.
+
+### Should MMF dose or immunosuppresant levels be included?
+
+`mmf_total`, `tacrolimus_level` and `cyclospirin_level` will be included as interaction with (not)taking a given immunosupressant
+
+```{r, collapse=TRUE}
+findat2 <- findat2 %>% mutate(
+  cyclospirin_level = if_else(is.na(cyclospirin_level), 0, cyclospirin_level),
+  tacrolimus_level = if_else(is.na(tacrolimus_level), 0, tacrolimus_level)
+  )
+
+model_all_imunLev <- gam(seroconversion ~  
+               vacc_time_cont +
+               vacc_time_2nd_cont +
+               vaccine_moderna+
+               tacrolimus +
+               tacrolimus:tacrolimus_level +
+               ciclosporinA +
+               ciclosporinA:cyclospirin_level +   
+               steroids +
+               months_afterTX +  
+               s(days_after_2nd_dose, k=4) + 
+               age + 
+               sex + 
+               EGFR_vaccination   +
+               mmf_mpa + 
+               mmf_mpa:mmf_total + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes),
+             data = findat2, 
+             family = binomial, method = "ML")
+
+BIC(model_all, model_all_imunLev)
+AIC(model_all, model_all_imunLev)
+summary(model_all_imunLev)
+```
+
+There is not strong evidence that the predictive accuracy has improved (note that the lower is AIC and BIC, the higher is estimated out-of-sample predictive accuracy of the model)
+
+What about if only MFA doses were added
+
+```{r, collapse=TRUE}
+model_all_mmfDose <- gam(seroconversion ~  
+               vacc_time_cont +
+               vacc_time_2nd_cont +
+               vaccine_moderna+
+               calcineurin_inhibitor +   
+               steroids +
+               months_afterTX +  
+               s(days_after_2nd_dose, k=4) + 
+               age + 
+               sex + 
+               EGFR_vaccination   +
+               mmf_mpa + 
+               mmf_mpa:mmf_total + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes),
+             data = findat2, 
+             family = binomial, method = "ML")
+
+BIC(model_all, model_all_mmfDose)
+AIC(model_all, model_all_mmfDose)
+
+summary(model_all_mmfDose)
+
+```
+
+There is relatively little evidence that inclusion of the MMF dose (`mmf_total`) improves accuracy. Moreover, its inclusion does not modify the estimated effect of the timing of vaccine administration.
+
+What if we include only MMF dose (not in interaction with `mmf_mpa`) as non-linear effect?
+
+```{r, collapse=TRUE}
+model_all_mmfDose_nl <- gam(seroconversion ~  
+               vacc_time_cont +
+               vacc_time_2nd_cont +
+               vaccine_moderna+
+               calcineurin_inhibitor +   
+               steroids +
+               months_afterTX +  
+               s(days_after_2nd_dose, k=4) + 
+               age + 
+               sex + 
+               EGFR_vaccination   +
+               s(mmf_total, k=4) + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes),
+             data = findat2, 
+             family = binomial, method = "ML")
+
+BIC(model_all, model_all_mmfDose_nl)
+AIC(model_all, model_all_mmfDose_nl)
+
+summary(model_all_mmfDose_nl)
+```
+
+Again, there is not substantial improvement of predictive accuracy when `mmf_mpa` is replaced with `mmf_total`. Similarly, estimated effects of the timing of vaccine administration are also very similar.
+
+### Does mTOR modulate the effect of vaccine timing?
+
+mTOR may affect circadian rhythms. Does intake of mTOR interact with the timings of vaccine administration?
+
+```{r, collapse=TRUE}
+model_all_mTOR <- gam(seroconversion ~  
+               vacc_time_cont*mTOR +
+               vacc_time_2nd_cont*mTOR +
+               vaccine_moderna+
+               calcineurin_inhibitor +   
+               steroids +
+               months_afterTX +  
+               s(days_after_2nd_dose, k=4) + 
+               age + 
+               sex + 
+               EGFR_vaccination   +
+               mmf_mpa + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes),
+             data = findat2, 
+             family = binomial, method = "ML")
+
+BIC(model_all, model_all_mTOR)
+AIC(model_all, model_all_mTOR)
+
+summary(model_all_mTOR)
+```
+
+The inclusion of the *mTOR* factor and its interactions with vaccine administration time did not improve predictive accuracy of the model. However, the effect of vaccine timing for the 2nd dose was practically diminished with taking mTOR.
+
+What if we worked only with mTOR non-takers?
+
+```{r, collapse=TRUE}
+findat2_no_mTOR <- findat2 %>% filter(mTOR == 0)
+dim(findat2_no_mTOR)
+
+
+model_all_no_mTOR <- gam(seroconversion ~  
+               vacc_time_cont +
+               vacc_time_2nd_cont +
+               vaccine_moderna+
+               calcineurin_inhibitor +   
+               steroids +
+               months_afterTX +  
+               s(days_after_2nd_dose, k=4) + 
+               age + 
+               sex + 
+               EGFR_vaccination   +
+               mmf_mpa + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes),
+             data = findat2_no_mTOR, 
+             family = binomial)
+
+summary(model_all)
+summary(model_all_no_mTOR)
+```
+
+The estimated effects did not change substantially
+
+### Does definition of `afternoon` affect model with dichotomized time?
+
+```{r, collapse=TRUE}
+
+findat2 <- findat2 %>% mutate(
+  afternoon1 = if_else(vacc_time_cont > 13, 1, 0),
+  afternoon2 = if_else(vacc_time_2nd_cont > 13, 1, 0)) 
+
+model_13 <- gam(seroconversion ~  
+               afternoon1 +
+               afternoon2 + 
+               vaccine_moderna + 
+               calcineurin_inhibitor + 
+               steroids+
+               s(days_after_2nd_dose, k=4) +
+               age + 
+               sex + 
+               months_afterTX +  
+               EGFR_vaccination   +
+               mmf_mpa + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes), 
+               data = findat2,
+               method='ML', 
+              family = binomial)
+
+findat2 <- findat2 %>% mutate(
+  afternoon1 = if_else(vacc_time_cont > 12, 1, 0),
+  afternoon2 = if_else(vacc_time_2nd_cont > 12, 1, 0)) 
+
+model_12 <- gam(seroconversion ~  
+               afternoon1 +
+               afternoon2 + 
+               vaccine_moderna + 
+               calcineurin_inhibitor + 
+               steroids+
+               s(days_after_2nd_dose, k=4) +
+               age + 
+               sex + 
+               months_afterTX +  
+               EGFR_vaccination   +
+               mmf_mpa + 
+               depletationTreat_year +  
+               DM + 
+               BMI + 
+               Albumine + 
+               log(Lymphocytes), 
+               data = findat2,
+               method='ML', 
+              family = binomial)
+
+
+summary(model_13)
+summary(model_12)
+```
+
+The threshold for the "afternoon" definition has a relatively large effect in terms of estimated effect size and the clarity of the vaccination timing effect.
+
+In summary, final models will be fitted without interaction between the two vaccination doses. Vaccination times as continuous predictors will be fitted as linear-effects predictors. Interaction between timings of two doses will not be considered.
+
+## Main (Bayesian) model
+
+As stated above, we primarily use model with *informative priors* for the effect of vaccination timing. The *informative priors* use previously acquired information, e.g. results from previous studies [@lin2023], and use it for informed inference.
+
+As 2 SD of continuous vaccination time is only 1.25 times larger than difference between the mean times of vaccination in the morning vs. afternoon, and we expect similar distribution also in the previous study [@lin2023], we will adopt our prior distribution directly on the basis of the results of *Lin et al.* [@lin2023]. The prior will be relatively very wide, accounting for limited comparability of study designs and patient population between our study vs. *Lin et al.* [@lin2023].
+
+```{r, collapse=TRUE}
+# 1st dose
+sd(findat2$vacc_time_cont)*2
+
+mean(findat2[findat2$afternoon1==0,]$vacc_time_cont)-
+  mean(findat2[findat2$afternoon1==1,]$vacc_time_cont)
+
+# 2nd dose
+sd(findat2$vacc_time_2nd_cont)*2
+
+mean(findat2[findat2$afternoon2==0,]$vacc_time_2nd_cont)-
+  mean(findat2[findat2$afternoon2==1,]$vacc_time_2nd_cont)
+
+```
+
+Setting priors
+
+```{r, collapse=TRUE}
+prior1 <- c(prior(normal(0, 5), class = b),
+            prior(normal(-0.9, 2), class = b, coef= vacc_time_scal),
+            prior(normal(-0.9, 2), class = b, coef= vacc_time2_scal))
+
+prior2 <- c(prior(normal(0, 5), class = b),
+            prior(normal(-0.9, 2), class = b, coef= afternoon1),
+            prior(normal(-0.9, 2), class = b, coef= afternoon2))
+
+```
+
+### Fitting main model
+
+```{r, collapse=TRUE}
+
+# scaling the continuous time by 2SD and centering to have zero means
+findat2 <- findat2 %>% mutate(vacc_time_scal = rescale(vacc_time_cont),
+                              vacc_time2_scal = rescale(vacc_time_2nd)) 
+model_main <- run_model(brm(seroconversion ~  
+               vacc_time_scal +
+               vacc_time2_scal +
+               rescale(vaccine_moderna, binary.inputs = '-0.5,0.5')  +
+               rescale(calcineurin_inhibitor, binary.inputs = '-0.5,0.5')  + 
+               rescale(steroids, binary.inputs = '-0.5,0.5')  +   
+               rescale(months_afterTX) + 
+               s(rescale(days_after_2nd_dose), k=4) +
+               rescale(DM, binary.inputs = '-0.5,0.5') +
+               rescale(age) + 
+               rescale(BMI) + 
+               rescale(Albumine) + 
+               rescale(log(Lymphocytes))+ 
+               rescale(sex, binary.inputs = '-0.5,0.5') + 
+               rescale(EGFR_vaccination) +
+               rescale(mmf_mpa, binary.inputs = '-0.5,0.5') + 
+               rescale(depletationTreat_year, binary.inputs = '-0.5,0.5'),
+               data = findat2, 
+               prior = prior1,
+               chains = 3, iter = 6000, warmup = 2000, seed = 17,
+               control = list(adapt_delta = 0.99),
+               cores = 1,
+               family = bernoulli(link='logit')),
+               'gitignore/brm3/model_main', reuse = TRUE)
+
+summary(model_main)
+repor(model_main)
+```
+
+### Reporting the main model
+
+Preparation of posterior draws
+
+```{r, collapse=TRUE}
+sd1 <- sd(findat2$vacc_time_cont)
+sd2 <- sd(findat2$vacc_time_2nd_cont)
+mean1 <- mean(findat2$vacc_time_cont)
+mean2 <- mean(findat2$vacc_time_2nd_cont)
+
+time_range <- c(7.1, 17.4)
+
+time <-seq(
+  time_range[1], 
+  time_range[2], length=100)
+
+time_z1 <- seq(
+  sca(time_range, mean1, sd1)[1], 
+  sca(time_range, mean1, sd1)[2], length=100)
+
+time_z2 <- seq(
+  sca(time_range, mean2, sd2)[1], 
+  sca(time_range, mean2, sd2)[2], length=100)
+
+post_fix <- as.data.frame(model_main) %>% select(
+  matches('b_')) 
+
+```
+
+Extraction of estimates
+
+```{r, collapse=TRUE}
+# estimation of seroconversion log-odds in relation to 1st dose time
+vacc_1est <- data.frame()
+for(i in 1:length(time_z1)){
+    vacc_1est[1:dim(post_fix)[1], i] <- post_fix$b_Intercept + post_fix$b_vacc_time_scal*time_z1[i]}
+
+
+vacc1_draw <- t(rbind(time, inv.logit(vacc_1est)))
+vacc_1est  <- sapply(vacc_1est, function(p) quantile(p, probs = c(1/40, 39/40, 0.5, 1/5, 4/5)))
+
+
+# estimation of seroconversion log-odds in relation to 2nd dose time
+vacc_2est <- data.frame()
+for(i in 1:length(time_z2)){
+    vacc_2est[1:dim(post_fix)[1],i] <- post_fix$b_Intercept + post_fix$b_vacc_time2_scal*time_z2[i]}
+
+vacc2_draw <- t(rbind(time, inv.logit(vacc_2est)))
+vacc_2est  <- sapply(vacc_2est, function(p) quantile(p, probs = c(1/40, 39/40, 0.5, 1/5, 4/5)))
+
+predict <- data.frame(
+  prediction = 
+    unlist(c(
+      inv.logit(vacc_1est[3,]),  inv.logit(vacc_2est[3,])
+      )),
+   cil = 
+    unlist(c(
+      inv.logit(vacc_1est[1,]),  inv.logit(vacc_2est[1,])
+             )), 
+    ciu = 
+    unlist(c(
+      inv.logit(vacc_1est[2,]),  inv.logit(vacc_2est[2,])
+             )), 
+     cilw = 
+    unlist(c(
+      inv.logit(vacc_1est[4,]),  inv.logit(vacc_2est[4,])
+             )), 
+    ciuw = 
+    unlist(c(
+      inv.logit(vacc_1est[5,]),  inv.logit(vacc_2est[5,])
+             )), 
+  
+  time = rep(time, 2),  group = c(
+    rep("1st dose",100),  rep("2nd dose",100)
+  ))
+```
+
+#### Fig1a: Plot for estimates
+
+```{r, collapse=TRUE, fig.height=4, fig.width=6}
+cole <- c('#CD7006', '#0028F0')
+
+range <- c(0, 1)
+xpo <- 14
+ypo <- 0.8 
+
+pd1 <- round(p_dir(post_fix$b_vacc_time_scal, '<', 0),2)
+pd2 <- round(p_dir(post_fix$b_vacc_time2_scal, '<', 0), 3)
+
+findat2_tra <- data.frame(time=c(findat2$vacc_time_cont,
+                                 findat2$vacc_time_2nd_cont),
+                          group=as.factor(c(rep('1st dose', dim(findat2)[1]),
+                                  rep('2nd dose', dim(findat2)[1]))),
+                          seroconversion = c(findat2$seroconversion, findat2$seroconversion))
+
+
+fig1a <- predict %>% 
+  
+  ggplot(aes(x = time, y = prediction, by = group, col=group, fill=group)) + 
+  geom_line(aes(y=prediction), linewidth = 1) + 
+  scale_x_continuous(breaks=c(seq(7, 18, by = 2))) +
+  scale_y_continuous(limits = c(range[1], range[2]),
+                     breaks = c(seq(0, 1, by=.2))) +
+  
+  geom_ribbon(aes(ymin = cil, ymax = ciu),
+               alpha = 0.35,  colour = NA) +
+  
+  labs(x = "Time of vaccination", y = 'Probability of seroconversion') +
+  scale_color_manual(values=cole, 
+                       name="Dose",
+                       breaks=c('1st dose', '2nd dose'),
+                       labels=c('1st', '2nd')) +
+  
+  scale_fill_manual(values=cole, 
+                       name="Dose",
+                       breaks=c('1st dose', '2nd dose'),
+                       labels=c('1st', '2nd')) +
+  
+  facet_grid(~group) +
+  # stat_dots(data = findat2_tra,
+  #           aes(y = seroconversion, 
+  #               side = ifelse(seroconversion == 0, "top", "bottom")),
+  #           scale = 1/8) +
+  
+  theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=12),
+        strip.text.x = element_text(size = 12),
+        legend.position = "none") 
+  
+
+fig1a
+```
+
+#### Spaghetti cooking (Fig 1a alternative)
+
+Data
+
+```{r, collapse=TRUE, fig.height=6, fig.width=4}
+vacc_draw <- rbind(vacc1_draw, vacc2_draw)
+vacc_draw <- data.frame(time = vacc_draw[,1],
+                        group = as.factor(c(rep('1st dose', dim(vacc1_draw)[1]),
+                                            rep('2nd dose', dim(vacc1_draw)[1]))),
+                        vacc_draw[,-1])
+
+set.seed(10)
+ndraws = 100
+vacc_draw_long <- vacc_draw %>%
+  pivot_longer(
+    cols = c(sample(3:12000, ndraws)),
+    names_to = "variable",
+    values_to = "value"
+  ) %>% select(time, group, variable, value)
+
+
+```
+
+Print cooked spaghetti
+
+```{r, collapse=TRUE, fig.height=6, fig.width=4, warning=FALSE}
+cole <- c('#CD7006', '#0028F0')
+
+range <- c(0, 1)
+xpo <- 14
+ypo <- 0.8 
+
+pd1 <- round(p_dir(post_fix$b_vacc_time_scal, '<', 0),2)
+pd2 <- round(p_dir(post_fix$b_vacc_time2_scal, '<', 0), 3)
+
+findat2_tra <- data.frame(time=c(findat2$vacc_time_cont,
+                                 findat2$vacc_time_2nd_cont),
+                          group=as.factor(c(rep('1st dose', dim(findat2)[1]),
+                                  rep('2nd dose', dim(findat2)[1]))),
+                          seroconversion = c(findat2$seroconversion, findat2$seroconversion))
+
+
+fig1as <- predict %>% 
+  
+  ggplot(aes(x = time, y = prediction, by = group, col=group, fill=group)) + 
+  geom_line(aes(y=prediction), linewidth = 1) + 
+  geom_line(data = vacc_draw_long, aes(x = time, y=value, by=variable), linewidth = 0.2, alpha=0.3) + 
+  scale_x_continuous(breaks=c(seq(7, 18, by = 2))) +
+  scale_y_continuous(limits = c(range[1], range[2]),
+                     breaks = c(seq(0, 1, by=.2))) +
+  
+  labs(x = "Time of vaccination", y = 'Probability of seroconversion)') +
+  scale_color_manual(values=cole, 
+                       name="Dose",
+                       breaks=c('1st dose', '2nd dose'),
+                       labels=c('1st', '2nd')) +
+  
+  scale_fill_manual(values=cole, 
+                       name="Dose",
+                       breaks=c('1st dose', '2nd dose'),
+                       labels=c('1st', '2nd')) +
+  
+  facet_grid(rows = vars(group)) +
+  stat_dots(data = findat2_tra,
+            aes(y = seroconversion, side = ifelse(seroconversion == 0, "top", "bottom")),
+            scale = 1/8) +
+  
+    theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=12),
+        strip.text.y = element_text(size = 12)) +
+  
+  theme(legend.position = "none") 
+
+fig1as
+```
+
+What is the probability of seroconversion if the 2nd dose was administered at different times?
+
+```{r}
+predict %>% filter(group == '2nd dose') %>% select(time, prediction) %>% 
+    filter(row_number() %% 10 == 0)
+```
+
+#### Fig1b: Posterior of vaccination time effects
+
+```{r, collapse=TRUE}
+sd1 <- sd(findat2$vacc_time_cont)*2
+sd2 <- sd(findat2$vacc_time_2nd_cont)*2
+
+pd <- c(round(p_dir(post_fix$b_vacc_time_scal, '<', 0),2),
+        round(p_dir(post_fix$b_vacc_time2_scal, '<', 0), 3)
+        )
+
+tr <- as_tibble(model_main)  %>%
+  mutate(dose_1 = exp(b_vacc_time_scal/sd1),
+         dose_2 = exp(b_vacc_time2_scal/sd2)) %>% 
+  select(dose_1, dose_2) %>% data.frame()
+
+CIS <- sapply(tr, function(p) quantile(p, probs = c(1/40, 39/40, 1/2, 0.055, 0.945)))
+
+CIS
+
+CIS[1, ] <- round(CIS[1, ], 2)
+CIS[3, ] <- round(CIS[3, ], 2)
+CIS[2, 2] <- round(CIS[2, 2], 3)
+CIS[2, 1] <- round(CIS[2, 1], 2)
+
+fig1b <- as_tibble(model_main)  %>%
+  mutate(dose_1 = exp(b_vacc_time_scal/sd1),
+         dose_2 = exp(b_vacc_time2_scal/sd2)) %>% 
+  
+  select(dose_2, dose_1) %>% 
+  gather(key, tau) %>%
+  mutate(key = factor(key, levels = c("dose_2", "dose_1"))) %>% 
+  
+  ggplot(aes(x = tau, y = key, fill = key)) +  
+  stat_halfeye(.width = c(0.95), slab_alpha=0.5,
+               linewidth = 5,
+               shape = 18,
+               point_size=5,
+               normalize = "groups") +
+  
+  labs(x = "Odds ratio (1-hour change)", 
+       y = 'Dose of anti-Covid vaccination') +
+  
+  scale_fill_manual(values = cole, 
+                       name="Dose",
+                       breaks=c('dose_1', 'dose_2'),
+                       labels=c('1st', '2nd'))  +
+  
+  scale_y_discrete(expand = expansion(add = 0.1),
+                       breaks=c('dose_2', 'dose_1'),
+                       labels=c('2nd', '1st'))  +
+  
+geom_vline(xintercept=1, linetype=2, 
+                color = "red", size=0.6) +
+  
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12)) +
+  
+  theme(legend.position = "none") +
+  ggtitle('Posterior distributions, main model') +
+  
+  
+  annotate("text",  x=1.4, y=1.9 , 
+           label = paste0("OR: ", CIS[3,2]),
+           color = cole[2] ) +    
+  
+  annotate("text",  x=1.4, y=2.9 , 
+           label = paste0("OR: ", CIS[3,1]),
+           color = cole[1] ) +
+  
+  annotate("text",  x=1.4, y=1.7 , 
+           label = paste0("95% CI: [", CIS[1,2], ", ", CIS[2,2], "]"),
+           color = cole[2] ) +    
+  
+  annotate("text",  x=1.4, y=2.7 , 
+           label = paste0("95% CI: [", CIS[1,1], ", ", CIS[2,1], "]"),
+           color = cole[1] ) +
+  
+  annotate("text",  x=1.4, y=1.5 , label = paste0("P [OR<1]:  ", pd[2]),
+           color = cole[2] ) +
+  
+  annotate("text",  x=1.4, y=2.5 , label = paste0("P [OR<1]:  ", pd[1]),
+           color = cole[1] )
+
+fig1b
+```
+
+#### Fig2: Posterior of other covariates
+
+```{r, collapse=TRUE, fig.height=8, fig.width=7, warning=FALSE}
+
+sds2 <- c(
+  sd(findat2$vacc_time_cont)*2,
+  sd(findat2$vacc_time_2nd_cont)*2,
+  1, # moderna
+  1, # caclcineurin inhibitors
+  1, # steroids
+  sd(findat2$months_afterTX)*2,
+  1, # DM
+  (sd(findat2$age)*2),
+  (sd(findat2$BMI)*2),
+  sd(findat2$Albumine)*2,
+  sd(log(findat2$Lymphocytes))*2,
+  1, # male sex
+  sd(findat2$EGFR_vaccination)*2,
+  1, ## MMF/MPA
+  1 # deplating
+  )
+
+fig2 <- as_tibble(model_main)  %>%
+  mutate('1st vaccination time [hour]' = exp(b_vacc_time_scal/sds2[1]), 
+          '2nd vaccination time [hour]'= exp(b_vacc_time2_scal/sds2[2]),
+          'Moderna [0/1]' = exp(b_rescalevaccine_modernabinary.inputsEQM0.50.5),
+          'Calcineurin inhibitor [0/1]' = exp(b_rescalecalcineurin_inhibitorbinary.inputsEQM0.50.5),
+          'Steroids [0/1]' = exp(b_rescalesteroidsbinary.inputsEQM0.50.5),
+          'Time after TX [10 years]' = exp((120*b_rescalemonths_afterTX)/sds2[6]),
+          'Diabetes Mellitus [0/1]' = exp(b_rescaleDMbinary.inputsEQM0.50.5),
+          'Age [10 years]' = exp((b_rescaleage*10)/sds2[8]),
+          'BMI [5 units]'= exp((b_rescaleBMI *5)/sds2[9]),
+          'Albumine [10 g/L]' = exp((b_rescaleAlbumine*10)/sds2[10]),
+          'Lymphocyte counts [log(10^9/L)]' = exp(b_rescalelogLymphocytes/sds2[11]),
+          'Male sex [0/1]' = exp(b_rescalesexbinary.inputsEQM0.50.5),
+          'eGFR [10 mL/min/1.73 m2]' = exp((b_rescaleEGFR_vaccination*10)/sds2[13]),
+          'MMF/MPA [0/1]' = exp(b_rescalemmf_mpabinary.inputsEQM0.50.5),
+          'Depleting therapy [0/1]' = exp(b_rescaledepletationTreat_yearbinary.inputsEQM0.50.5) )  %>% 
+  
+  select( 'Moderna [0/1]',
+          'Calcineurin inhibitor [0/1]',
+          'Steroids [0/1]',
+          'Time after TX [10 years]',
+          'Diabetes Mellitus [0/1]',
+          'Age [10 years]',
+          'BMI [5 units]',
+          'Albumine [10 g/L]',
+          'Lymphocyte counts [log(10^9/L)]',
+          'Male sex [0/1]',
+          'eGFR [10 mL/min/1.73 m2]',
+          'MMF/MPA [0/1]',
+          'Depleting therapy [0/1]'
+         ) %>% 
+  
+  gather(key, tau) %>%
+
+  ggplot(aes(x = tau, y = key)) +
+  stat_halfeye(.width = c(0.95), slab_alpha=0.8,
+               linewidth = 5,
+               shape = 18,
+               point_size=5,
+               normalize = "groups",
+               fill = 'grey60') +
+
+  labs(x = "Odds ratio (log-scaled axis)",  y = NULL) +
+  #scale_y_discrete(expand = expansion(add = 0.1)) +
+
+  scale_x_continuous(trans='log2', limits=c(0.018, 30),
+                     breaks=c(1/64, 1/16, 1/4, 1, 4, 16),
+                     labels=c('', '1/16', '1/4', 1, 4, 16)) +
+
+  geom_vline(xintercept=1, linetype=2,
+                color = "red", size=0.6) +
+
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12)) +
+
+  theme(legend.position = "none")
+
+fig2
+```
+
+#### Table 2: main model results
+
+```{r, collapse=TRUE}
+
+
+
+sds1 <- c(
+  sd(findat2$vacc_time_cont)*2,
+  sd(findat2$vacc_time_2nd_cont)*2,
+  1, # moderna
+  1, # caclcineurin inhibitors
+  1, # steroids
+  (sd(findat2$months_afterTX)*2)/120,
+  1, # DM
+  (sd(findat2$age)*2)/10,
+  (sd(findat2$BMI)*2)/5,
+  sd(findat2$Albumine)*2,
+  sd(log(findat2$Lymphocytes))*2,
+  1, # male sex
+  (sd(findat2$EGFR_vaccination)*2)/10,
+  1, ## MMF/MPA
+  1 # deplating
+  )
+
+labe1 <- c('1st vaccination time [hour]', 
+          '2nd vaccination time [hour]',
+          'Moderna [0/1]',
+          'Calcineurin inhibitor[0/1]',
+          'Steroids [0/1]',
+          'Time after TX [10 years]',
+          'Diabetes Mellitus [0/1]',
+          'Age [10 years]',
+          'BMI [5 units]',
+          'Albumine [g/L]',
+          'Lymphocyte counts [log(10^9/L)]',
+          'Male sex [0/1]',
+          'eGFR [10 mL/min/1.73 m2]',
+          'MMF/MPA [0/1]',
+          'Depleting therapy [0/1]') 
+
+
+tr1 <- repor(model_main, labels=labe1, scals = sds1, nhtm=TRUE)
+# full model
+table2 <- kableExtra::kable(tr1, caption = 
+      "Table 2. Results of Bayesian logistic regression modeling the probability of seroconversion following mRNA anti-Covid vaccination. 'OR' represents the odds ratio, indicating the expected fold-change in odds when the predictor changes by the unit defined in the square brackets. 'Q2.5' and 'Q97.5' denote the lower and upper bounds of the 95% credible interval, while 'PD' shows the probability of direction") 
+
+table2
+
+
+```
+
+## Sensitivity analyses
+
+### Model specification sensitivity, `reduced_model`
+
+Fitting the model
+
+```{r, collapse=TRUE}
+model_reduced <- run_model(brm(seroconversion ~  
+               vacc_time_scal +
+               vacc_time2_scal +
+               rescale(months_afterTX) + 
+               rescale(age) + 
+               rescale(log(Lymphocytes))+ 
+               rescale(sex, binary.inputs = '-0.5,0.5') + 
+               rescale(EGFR_vaccination) +
+               rescale(mmf_mpa, binary.inputs = '-0.5,0.5') + 
+               rescale(depletationTreat_year, binary.inputs = '-0.5,0.5'),
+              data = findat2, 
+              prior = prior1,
+             chains = 3, iter = 6000, warmup = 2000, seed = 17,
+             control = list(adapt_delta = 0.99),
+             cores = 1,
+             family = bernoulli(link='logit')),
+  'gitignore/brm3/model_reduced', reuse = TRUE)
+
+summary(model_reduced)
+repor(model_reduced)
+```
+
+Reporting: `suppl_table3`
+
+```{r, collapse=TRUE}
+sds2 <- c(
+  sd(findat2$vacc_time_cont)*2,
+  sd(findat2$vacc_time_2nd_cont)*2,
+  (sd(findat2$months_afterTX)*2)/120,
+  (sd(findat2$age)*2)/10,
+  sd(log(findat2$Lymphocytes))*2,
+  1, # male sex
+  (sd(findat2$EGFR_vaccination)*2)/10,
+  1, ## MMF/MPA
+  1 # deplating
+  )
+
+labe2 = c('1st vaccination time [hour]', 
+          '2nd vaccination time [hour]',
+          'Time after TX [10 years]',
+          'Age [10 years]',
+          'Lymphocyte counts [log(10^9/L)]',
+          'Male sex [0/1]',
+          'eGFR [10 mL/min/1.73 m2]',
+          'MMF/MPA [0/1]',
+          'Depleting therapy [0/1]') 
+
+
+tr2 <- repor(model_reduced, labels=labe2, scals = sds2, nhtm=TRUE)
+
+suppl_table3 <- kableExtra::kable(tr2, caption = 
+      "Supplementary Table 3. Model specification sensitivity analysis, conducted through Bayesian logistic regression, examining the probability of seroconversion following mRNA anti-Covid vaccination. In contrast to the main model, only selected covariates were included here. 'OR' represents the odds ratio, indicating the expected fold-change in odds when the predictor changes by the unit defined in square brackets. 'Q2.5' and 'Q97.5' denote the lower and upper bounds of the 95% credible interval, respectively, while 'PD' shows the probability of direction. Refer to the methods section for details."
+      )
+
+suppl_table3
+```
+
+### Prior sensitivity, `model_uniprior`
+
+Next we will fit the same models as above, but we will ignore known information about the effect of morning vaccination on the seroconversion. Thus, we will apply the same models as above but with a zero-effect-centered prior ($\mu = 0$, $\sigma = 5$) for all predictors including vaccination time.
+
+Fitting model
+
+```{r, collapse=TRUE}
+findat2 <- findat2 %>% mutate(vacc_time_scal = rescale(vacc_time_cont),
+                              vacc_time2_scal = rescale(vacc_time_2nd)) 
+
+
+model_uniprior <- run_model(brm(seroconversion ~  
+               vacc_time_scal +
+               vacc_time2_scal +
+               rescale(vaccine_moderna, binary.inputs = '-0.5,0.5')  +
+               rescale(calcineurin_inhibitor, binary.inputs = '-0.5,0.5')  + 
+               rescale(steroids, binary.inputs = '-0.5,0.5')  +   
+               rescale(months_afterTX) + 
+               s(rescale(days_after_2nd_dose), k=4) +
+               rescale(DM, binary.inputs = '-0.5,0.5') +
+               rescale(age) + 
+               rescale(BMI) + 
+               rescale(Albumine) + 
+               rescale(log(Lymphocytes))+ 
+               rescale(sex, binary.inputs = '-0.5,0.5') + 
+               rescale(EGFR_vaccination) +
+               rescale(mmf_mpa, binary.inputs = '-0.5,0.5') + 
+               rescale(depletationTreat_year, binary.inputs = '-0.5,0.5'),
+              data = findat2, 
+              prior = prior(normal(0, 5), class = "b"),
+             chains = 3, iter = 6000, warmup = 2000, seed = 17,
+             control = list(adapt_delta = 0.99),
+             cores = 1,
+             family = bernoulli(link='logit')),
+  'gitignore/brm3/model_uniprior', reuse = TRUE)
+
+summary(model_uniprior)
+repor(model_uniprior)
+```
+
+Reporting: `suppl_table4`
+
+```{r, collapse=TRUE}
+
+tr1n <- repor(model_uniprior, labels=labe1, scals = sds1, nhtm=TRUE)
+# full model
+
+suppl_table4 <- kableExtra::kable(tr1n, caption = 
+      "Supplementary table 4. Prior sensitivity analysis, conducted using Bayesian logistic regression to model the probability of seroconversion following mRNA anti-Covid vaccination. In contrast to the main model, here we applied a zero-centered Gaussian prior also for the effect of vaccination timing. 'OR' represents the odds ratio, indicating the expected fold-change in odds when the predictor changes by the unit defined in square brackets. 'Q2.5' and 'Q97.5' denote the lower and upper bounds of the 95% credible interval, respectively, while 'PD' shows the probability of direction. Please refer to the methods section for additional details.") 
+suppl_table4
+```
+
+### Seroconnversion threshold sensitivity, `model_seroconversion_min`
+
+Fitting model
+
+```{r, collapse=TRUE}
+
+# scaling the continuous time by 2SD and centering to have zero means
+findat2 <- findat2 %>% mutate(vacc_time_scal = rescale(vacc_time_cont),
+                              vacc_time2_scal = rescale(vacc_time_2nd)) 
+### Continuous times models
+
+findat2$seroconversion2 <- ifelse(findat2$antibody_level>3.6, 1, 0)
+
+# full model
+model_seroconversion_min <- run_model(brm(seroconversion2 ~  
+               vacc_time_scal +
+               vacc_time2_scal +
+               rescale(vaccine_moderna, binary.inputs = '-0.5,0.5')  +
+               rescale(calcineurin_inhibitor, binary.inputs = '-0.5,0.5')  + 
+               rescale(steroids, binary.inputs = '-0.5,0.5')  +   
+               rescale(months_afterTX) + 
+               s(rescale(days_after_2nd_dose), k=4) +
+               rescale(DM, binary.inputs = '-0.5,0.5') +
+               rescale(age) + 
+               rescale(BMI) + 
+               rescale(Albumine) + 
+               rescale(log(Lymphocytes))+ 
+               rescale(sex, binary.inputs = '-0.5,0.5') + 
+               rescale(EGFR_vaccination) +
+               rescale(mmf_mpa, binary.inputs = '-0.5,0.5') + 
+               rescale(depletationTreat_year, binary.inputs = '-0.5,0.5'),
+               data = findat2, 
+               prior = prior1,
+               chains = 3, iter = 6000, warmup = 2000, seed = 17,
+               control = list(adapt_delta = 0.99),
+               cores = 1,
+               family = bernoulli(link='logit')),
+               'gitignore/brm3/model_seroconversion_min', reuse = TRUE)
+
+summary(model_seroconversion_min)
+repor(model_seroconversion_min)
+```
+
+Reporting: `suppl_table`5
+
+```{r, collapse=TRUE}
+
+tr1ss <- repor(model_seroconversion_min, labels=labe1, scals = sds1, nhtm=TRUE)
+# full model
+
+suppl_table5 <- kableExtra::kable(tr1ss, caption = 
+      "Supplementary table 5. Seroconversion threshold sensitivity analysis, conducted using Bayesian logistic regression to examine the probability of seroconversion following mRNA anti-Covid vaccination. In contrast to the main model, seroconversion is defined here as the minimum detectable level of SARS-CoV-2 IgG antibody (>3.6). 'OR' represents the odds ratio, indicating the expected fold-change in odds when the predictor changes by the unit defined in square brackets. 'Q2.5' and 'Q97.5' denote the lower and upper bounds of the 95% credible interval, respectively, while 'PD' shows the probability of direction. Please refer to the methods section for additional details.") 
+suppl_table5
+```
+
+### Models with dichotomized time
+
+("morning" vs. "afternoon", with two different definitions of `afternoon`)
+
+```{r, collapse=TRUE}
+
+findat2 <- findat2 %>% 
+  mutate(
+    afternoon1 = if_else(vacc_time_cont>13, 1, 0),
+    afternoon2 = if_else(vacc_time_2nd_cont>13, 1, 0)
+    ) 
+
+
+model_dichotomized_13 <- run_model(brm(seroconversion ~  
+               afternoon1 +
+               afternoon2 +
+               rescale(vaccine_moderna, binary.inputs = '-0.5,0.5')  +
+               rescale(calcineurin_inhibitor, binary.inputs = '-0.5,0.5')  + 
+               rescale(steroids, binary.inputs = '-0.5,0.5')  +   
+               rescale(months_afterTX) + 
+               s(rescale(days_after_2nd_dose), k=4) +
+               rescale(DM, binary.inputs = '-0.5,0.5') +
+               rescale(age) + 
+               rescale(BMI) + 
+               rescale(Albumine) + 
+               rescale(log(Lymphocytes))+ 
+               rescale(sex, binary.inputs = '-0.5,0.5') + 
+               rescale(EGFR_vaccination) +
+               rescale(mmf_mpa, binary.inputs = '-0.5,0.5') + 
+               rescale(depletationTreat_year, binary.inputs = '-0.5,0.5'),
+               data = findat2, 
+               prior = prior2,
+             chains = 3, iter = 6000, warmup = 2000, seed = 17,
+             control = list(adapt_delta = 0.99),
+             cores = 1,
+             family = bernoulli(link='logit')),
+  'gitignore/brm3/model_dichotomized_13', reuse = TRUE)
+
+summary(model_dichotomized_13)
+repor(model_dichotomized_13)
+
+
+findat2 <- findat2 %>% 
+  mutate(
+    afternoon1 = if_else(vacc_time_cont>12, 1, 0),
+    afternoon2 = if_else(vacc_time_2nd_cont>12, 1, 0)
+    ) 
+
+model_dichotomized_12 <- run_model(brm(seroconversion ~  
+               afternoon1 +
+               afternoon2 +
+               rescale(vaccine_moderna, binary.inputs = '-0.5,0.5')  +
+               rescale(calcineurin_inhibitor, binary.inputs = '-0.5,0.5')  + 
+               rescale(steroids, binary.inputs = '-0.5,0.5')  +   
+               rescale(months_afterTX) + 
+               s(rescale(days_after_2nd_dose), k=4) +
+               rescale(DM, binary.inputs = '-0.5,0.5') +
+               rescale(age) + 
+               rescale(BMI) + 
+               rescale(Albumine) + 
+               rescale(log(Lymphocytes))+ 
+               rescale(sex, binary.inputs = '-0.5,0.5') + 
+               rescale(EGFR_vaccination) +
+               rescale(mmf_mpa, binary.inputs = '-0.5,0.5') + 
+               rescale(depletationTreat_year, binary.inputs = '-0.5,0.5'),
+               data = findat2, 
+               prior = prior2,
+             chains = 3, iter = 6000, warmup = 2000, seed = 17,
+             control = list(adapt_delta = 0.99),
+             cores = 1,
+             family = bernoulli(link='logit')),
+  'gitignore/brm3/model_dichotomized_12', reuse = TRUE)
+
+summary(model_dichotomized_12)
+repor(model_dichotomized_12)
+```
+
+Report: `suppl_table6`
+
+```{r, collapse=TRUE}
+sds2 <- c(
+  1,
+  1,
+  1, # moderna
+  1, # caclcineurin inhibitors
+  1, # steroids
+  (sd(findat2$months_afterTX)*2)/120,
+  1, # DM
+  (sd(findat2$age)*2)/10,
+  (sd(findat2$BMI)*2)/5,
+  sd(findat2$Albumine)*2,
+  sd(log(findat2$Lymphocytes))*2,
+  1, # male sex
+  (sd(findat2$EGFR_vaccination)*2)/10,
+  1, ## MMF/MPA
+  1 # deplating
+  )
+
+labe2 <- c('1st dose afternoon[0/1]', 
+          '2nd dose afternoon [0/1]',
+          'Moderna [0/1]',
+          'Calcineurin inhibitor[0/1]',
+          'Steroids [0/1]',
+          'Time after TX [10 years]',
+          'Diabetes Mellitus [0/1]',
+          'Age [10 years]',
+          'BMI [5 units]',
+          'Albumine [g/L]',
+          'Lymphocyte counts [log(10^9/L)]',
+          'Male sex [0/1]',
+          'eGFR [10 mL/min/1.73 m2]',
+          'MMF/MPA [0/1]',
+          'Depleting therapy [0/1]') 
+
+tr4 <- repor(model_dichotomized_12, labels=labe2, scals = sds2, nhtm=TRUE)
+tr6 <- repor(model_dichotomized_13, labels=labe2, scals = sds2, nhtm=TRUE)
+
+tr46 <- cbind(tr4, tr6)
+
+# full model
+suppl_table6 <- kableExtra::kable(tr46, caption = 
+      "Supplementary Table 6. Results of Bayesian logistic regression modeling he probability of seroconversion following mRNA anti-Covid vaccination. In contrast to the main model, here we used dichotomized vaccination times ('afternoon' vs. 'morning')  with two different thresholds (12 pm and 1pm, left and right section respectively). 'OR' implies odds ratio (expected fold-change in odds when predictor changes by the unit defined in the square brackets). 'Q2.5' and 'Q97.5' are lower and upper bounds of 95% credible interval. 'PD' implies proability of direction") %>%
+  add_header_above(c(" " = 1, "Threshold: 12 pm" = 4, "Threshold: 1 pm" = 4)) %>% 
+  column_spec(1, width_min = '2.5in')
+
+
+suppl_table6
+```
+
+### Quantile regression analysis, `model_quantile`
+
+This is another sensitivity analysis with respect to the seroconversion definition. Here are the IgG levels modelled directly.
+
+Due to detection limit (3.6 on left and 8000 on right), it is difficult to model the antibody levels with common regression methods. We will write the censored value as 2/3 of the detection limit on the left and 3/2 of the detection limit on the right. Next, we will provide quantile regression which is not affected by specific values and is more robust toward assumptions of parametric methods. We will use log2-transformed antibody level as the outcome as it has strongly right-tailed distribution. As `rq` function does not support splines, `days_after_2nd_dose` will be fitted as a predictor with linear function.
+
+```{r, collapse=TRUE, warning=FALSE}
+
+set.seed(17)
+findat2 <- findat2 %>% mutate(
+  antibody_level_cens = if_else(antibody_level <= 3.6, 2.4, 
+                                antibody_level)) %>% 
+  mutate(antibody_level_cens = if_else(antibody_level_cens >= 8000, 12000, 
+                                         antibody_level_cens))
+
+  model_quant <-  rq(log2(antibody_level_cens) ~  
+               vacc_time_cont +
+               vacc_time_2nd_cont +
+               vaccine_moderna +
+               calcineurin_inhibitor + 
+               steroids +   
+               I(months_afterTX/120) + 
+               DM +
+               I(age/10) + 
+               I(BMI/5) + 
+               Albumine + 
+               log(Lymphocytes) + 
+               sex + 
+               I(EGFR_vaccination/10) +
+               mmf_mpa + 
+               depletationTreat_year +
+               I(days_after_2nd_dose/7),
+               data = findat2)
+
+kableExtra::kable(summary(model_quant)$coefficients[,])
+```
+
+Report: `suppl_table7`
+
+```{r, collapse=TRUE, warning=FALSE}
+tr <- data.frame(estimate = summary(model_quant)$coefficients[-1, 1],
+                 Q2.5 = summary(model_quant)$coefficients[-1,2],
+                 Q97.5 = summary(model_quant)$coefficients[-1,3])
+tr <- round(tr, 2)
+rownames(tr) <- c(labe1, 'Weeks after 2nd dose')
+suppl_table7 <- kableExtra::kable(tr, caption = 
+      "Supplementary Table 7. Results of quantile regression modelling for the median level of log2-transformed SARS-CoV-2 IgG. 'Estimate' indicates the expected changes in log2(IgG) when the predictor changes by the unit defined in the square brackets. 'Q2.5' and 'Q97.5' represent the lower and upper bounds of the 95% confidence interval, respectively.")
+
+suppl_table7
+```
+
+Estimation of median IgG when the 2nd dose was administrated at 9 am vs. 3 pm
+
+```{r, collapse=TRUE, warning=FALSE}
+
+  model_quant_cent <-  rq((antibody_level_cens) ~  
+               rescale(vacc_time_cont) +
+               vacc_time_2nd_cont +
+               rescale(vaccine_moderna) +
+               rescale(calcineurin_inhibitor) + 
+               rescale(steroids) +   
+               rescale(months_afterTX) + 
+               rescale(DM) +
+               rescale(age) + 
+               rescale(BMI) + 
+               rescale(Albumine) + 
+               rescale(log(Lymphocytes)) + 
+               rescale(sex) + 
+               rescale(EGFR_vaccination) +
+               rescale(mmf_mpa) + 
+               rescale(depletationTreat_year) +
+               rescale(days_after_2nd_dose),
+               data = findat2)
+
+## predicted median IgG at 9 am
+pred9 <- 2^(coef(model_quant_cent)[1] + (9*coef(model_quant_cent)[3]))
+pred9
+
+## predicted median IgG at 15 pm
+pred15 <- 2^(coef(model_quant_cent)[1] + (15*coef(model_quant_cent)[3]))
+pred15
+
+## predicted percentage change of IgG from 9 am to 3 pm
+## (both calculation should show the same results)
+(pred15/pred9)
+(2^(coef(model_quant_cent)[3]))**6
+
+## predicted percentage change of median IgG by 1 hour
+## (both calculation should lead to the same result)
+2^(coef(model_quant_cent)[3])
+
+
+(2^(coef(model_quant_cent)[1] + (10*coef(model_quant_cent)[3])))/
+  (2^(coef(model_quant_cent)[1] + (9*coef(model_quant_cent)[3])))
+
+```
+
+### `Fig1c`: joint visualisation of sensitivity analyses
+
+Data preparation
+
+```{r, collapse=TRUE}
+
+cole <- c('#CD7006', '#0028F0')
+
+sd1 <- sd(findat2$vacc_time_cont)*2
+sd2 <- sd(findat2$vacc_time_2nd_cont)*2
+
+
+## model specification sensitivity
+tr_reduced <- as_tibble(model_reduced)  %>%
+  mutate(dose_1_reduced = exp(b_vacc_time_scal/sd1),
+         dose_2_reduced = exp(b_vacc_time2_scal/sd2)) %>% 
+  select(dose_1_reduced, dose_2_reduced) %>% data.frame()
+
+CI_reduced <- sapply(tr_reduced, 
+                     function(p) quantile(p, probs = c(1/40, 39/40)))
+
+
+## prior sensitivity
+tr_unprior <- as_tibble(model_uniprior)  %>%
+  mutate(dose_1_unprior = exp(b_vacc_time_scal/sd1),
+         dose_2_unprior = exp(b_vacc_time2_scal/sd2)) %>% 
+  select(dose_1_unprior, dose_2_unprior) %>% data.frame()
+
+## seroconversion definition sensitivity
+tr_seroconversion_min <- as_tibble(model_seroconversion_min)  %>%
+  mutate(dose_1_seroconversion_min = exp(b_vacc_time_scal/sd1),
+         dose_2_seroconversion_min = exp(b_vacc_time2_scal/sd2)) %>% 
+  select(dose_1_seroconversion_min, 
+         dose_2_seroconversion_min) %>% data.frame()
+
+## dichotomized time 12 pm
+tr_dichotomized_12 <- as_tibble(model_dichotomized_12)  %>%
+  mutate(dose_1_dichotomized_12 = exp(b_afternoon1),
+         dose_2_dichotomized_12 = exp(b_afternoon2)) %>% 
+  select(dose_1_dichotomized_12, 
+         dose_2_dichotomized_12) %>% data.frame()
+
+## dichotomized time 1 pm
+tr_dichotomized_13 <- as_tibble(model_dichotomized_13)  %>%
+  mutate(dose_1_dichotomized_13 = exp(b_afternoon1),
+         dose_2_dichotomized_13 = exp(b_afternoon2)) %>% 
+  select(dose_1_dichotomized_13, 
+         dose_2_dichotomized_13) %>% data.frame()
+
+tr_joint <- cbind(tr_reduced,
+                  tr_unprior,
+                  tr_seroconversion_min,
+                  tr_dichotomized_12,
+                  tr_dichotomized_13)
+
+CI_joint <- t(sapply(tr_joint, 
+                     function(p) quantile(p, probs = c(1/40, 39/40, 0.055, 0.945, 0.5)))) %>%
+  data.frame() %>% 
+  rownames_to_column(var = "cat") %>% 
+  mutate(dose = if_else(grepl("dose_1", cat), "dose1", "dose2")) %>% 
+  mutate(X97.5. = if_else(dose == 'dose2', 
+                         round(X97.5., 4),
+                         round(X97.5., 2)),
+         X2.5. = round(X2.5., 2),
+         X50. = round(X50., 2),
+         key = c("Reduced", "Reduced",
+                 "non-inf. pr.", "non-inf. pr.",
+                 "Sero+: 3.6", "Sero+: 3.6",
+                 "By 12 pm", "By 12 pm",
+                 "By 1 pm", "By 1 pm"))
+
+
+data.frame(CI_joint)
+
+tr_d1 <- tr_joint %>% 
+  select(matches("dose_1")) %>% 
+  gather(key, tau) %>%
+  mutate(key = factor(key, levels = c("dose_1_dichotomized_13", 
+                                      "dose_1_dichotomized_12",
+                                      "dose_1_seroconversion_min",
+                                      "dose_1_unprior",
+                                      "dose_1_reduced"),
+                      labels = rev(c("Reduced",
+                              "non-inf. pr.",
+                              "Sero+: 3.6", 
+                              "By 12 pm",
+                              "By 1 pm"))), 
+         dose = 'dose1') 
+
+
+tr_d2 <- tr_joint %>% 
+  select(matches("dose_2")) %>% 
+  gather(key, tau) %>%
+  mutate(key = factor(key, levels = c("dose_2_dichotomized_13", 
+                                      "dose_2_dichotomized_12",
+                                      "dose_2_seroconversion_min",
+                                      "dose_2_unprior",
+                                      "dose_2_reduced"),
+                      labels = rev(c("Reduced",
+                              "non-inf. pr.",
+                              "Sero+: 3.6", 
+                              "By 12 pm",
+                              "By 1 pm"))), 
+         dose = 'dose2') 
+
+
+tr_d <- rbind(tr_d1, tr_d2)
+```
+
+Printing
+
+```{r, collapse=TRUE, warning=FALSE, fig.width=7, fig.height=5}
+fig1c <- tr_d %>% ggplot(
+  aes(x = tau, y = key, fill = dose)) +  
+  
+  stat_halfeye(.width = c(0.95), slab_alpha=0.5,
+               linewidth = 5,
+               shape = 18,
+               point_size = 5,
+               normalize = "panels") +
+  
+  labs(x = "Odds ratio (1-hour change or afternoon vs. morning)", 
+       y = 'Model') +
+  
+ geom_vline(xintercept=1, linetype=2, 
+                color = "red", size=0.6) +
+  
+  scale_x_continuous(limits=c(0.3, 2),
+                     breaks=c(0.5, 1, 1.5, 2)) +
+  
+  scale_fill_manual(values = cole) +
+  facet_wrap(~dose, 
+             labeller = labeller(dose = 
+                                   c("dose1" = "1st dose", 
+                                     "dose2" = "2nd dose"))) +
+  
+  theme(legend.position = "none",
+        strip.text = element_text(size = 14),
+        axis.text.y = element_text(size=11),
+        axis.text.x = element_text(size=11),
+        axis.title = element_text(size=12)) +
+  
+  ggtitle("Posterior distributions, sensitivity analyses") +
+  geom_text(data = CI_joint, 
+            label = paste0("95% CI: [", CI_joint$X2.5., ", ", CI_joint$X97.5., "]"),
+                           x = 1.7, vjust = -1, 
+            color = rep(c(cole[1], cole[2]),5))+
+  
+  geom_text(data = CI_joint, 
+            label = paste0("OR: ", CI_joint$X50),
+                           x = 1.7, vjust = -3, 
+            color = rep(c(cole[1], cole[2]),5))
+
+  
+  fig1c
+  
+```
+
+# Published results
+
+## Tables
+
+### Table 1
+
+```{r, collapse=TRUE}
+table1
+```
+
+### Table 2
+
+```{r, collapse=TRUE}
+table2
+```
+
+### Suppl. Table 1
+
+```{r, collapse=TRUE}
+suppl_table1
+```
+
+### Suppl. Table 2
+
+```{r, collapse=TRUE}
+suppl_table2
+```
+
+### Suppl. Table 3
+
+```{r, collapse=TRUE}
+suppl_table3
+```
+
+### Suppl. Table 4
+
+```{r, collapse=TRUE}
+suppl_table4
+```
+
+### Suppl. Table 5
+
+```{r, collapse=TRUE}
+suppl_table5
+```
+
+### Suppl. Table 6
+
+```{r, collapse=TRUE}
+suppl_table6
+```
+
+### Suppl. Table 7
+
+```{r, collapse=TRUE}
+suppl_table7
+```
+
+## Figures
+
+### Figure 1
+
+```{r, collapse=TRUE, fig.height=8, fig.width=10, warning=FALSE}
+#| fig.cap: 'Figure 1. The effects of morning vaccination on seroconversion following SARS-CoV-2 vaccination in KTRs.  (**A**) Predicted probability of seroconversion in relation to the timing of vaccine dose administration (1st dose in the left panel and 2nd dose in the right panel) and 95% credible interval (shaded regions).  The displayed curves show the effects of vaccination times, averaged over binary covariates and conditional on the mean of continuous predictors. (**B**) Posterior distribution and 95% credible interval representing the impact of a 1-hour delay in vaccination time on seroconversion according to the main model. The value P [OR<1] indicates the model-estimated probability that earlier vaccination improves seroconversion (i.e., odds ratio for time is smaller than 1). (***C***) Posterior distribution for the effect of a 1-hour delay in vaccination time, or afternoon vs. morning vaccination times, based on five different sensitivity analyses (*reduced* = model with reduced covariate adjustments (only variables that differ between seroconverted and not seroconverted patients, as shown in Table 1, were included); *non-inf.pr.* = model with non-informative prior for all predictor (including vaccination times), reflecting a neutral initial assumption about their effect; *sero+*: 3.6 = the threshold for antibody positivity was changed to > 3.6 AU/ml (laboratory limit of detection, rather than seroconversion); *By 12pm* = afternoon is defined as later than 12pm; *By 1pm* = afternoon is defined as later than 1pm). The impact of the timing of the 1st dose is presented on the left, and for the 2nd dose on the right. CI indicate bounds of 95% credible interval. See methods for details and supplementary tables 3 – 7 for detailed results of sensitivity analyses'
+
+bot <- plot_grid(fig1a, fig1b, rel_widths  = c(0.5, 0.5), labels=c("A", "B"), ncol=2)
+plot_grid(bot, fig1c, nrow=2, rel_heights = c(0.45, 0.55), labels=c("", "C"))
+```
+
+### Figure 2
+
+```{r, collapse=TRUE, fig.height=8, fig.width=7, warning=FALSE}
+#| fig.cap: "Figure 2. Posterior distributions (grey) and 95% credible intervals (black) for the effects of recorded covariates on odds of seroconversion following SARS-CoV-2 vaccination in KTRs. This Figure illustrates in more detail the posterior probabilities of all covariates from the main model showed in Table 2"
+fig2
+```
+
+### Suppl. Figure 1
+
+```{r, collapse=TRUE, fig.width=6, fig.height=4}
+#| fig-cap: "Supplementary Figure 1. Effects of vaccination times (1st dose on the left, 2nd dose in the middle) of anti-Covid mRNA vaccination, and the non-linear effect of time (days) between 2nd dose and blood sampling for IgG testing (right) on probability of seroconversion (SARS-CoV-2 IgG > 9.5). All the 3 variables were fitted as non-linear effect predictors using spline in generalized additive model. Y-axes show partial residuals. Solid lines show prediction, dahsed lines imply 95% confidence interval. In the case of vacciantion times, penalized splines shrunk the curves to straight lines, implying that the vaccacintion times may be fitted as predictors with linear effects. In contrast, there is seen non-linearity in the effect of the time between 2nd dose and blood collection (right). See https://github.com/filip-tichanek/CovidTimeRTX for details"
+
+par(mfrow=c(1,3))
+par(mar=c(3,3,1,1))
+par(mgp=c(1.5,0.5,0))
+plot.gam(model_all_nl, ylab=c('Partial residuals'))
+```
+
+
+### Suppl. Figure 2
+```{r, collapse=TRUE, fig.height=6, fig.width=6, warning=FALSE, message=FALSE}
+#| fig-cap: "Supplementary Figure 2. HHistogram displaying vaccination time distribution for the 1st (left) and the 2nd (right) vaccine doses, separately for patients with successful (top) and unsuccessful (bottom) seroconversion. The x-axis shows the vaccination time in hours, while the y-axis shows the percentages of patients vaccinated in the corresponding time bin"
+suppl_fig2
+```
+
+### Suppl. Figure 3
+```{r, warning=FALSE, message=FALSE, fig.height=6, fig.width=4.3, message=FALSE}
+#| fig-cap: "Supplementary Figure 3. The distribution of SARS-CoV-2 IgG antibody levels in patients with successful seroconversion. Note: Y-axis is on a log10 scale, showing original antibody level values. Boxplot shows median  (line inside box), interquartile range (IQR, box) and range within 1.5*IQR (whiskers). Individual points are data of individual patients with successful seroconversion."
+suppl_fig3
+```
+
+```{r, collapse=TRUE, echo=FALSE, output=FALSE, warning=FALSE}
+# printing figures to PDF
+
+## fig 1
+if(file.exists("gitignore/fig1rev.pdf") == FALSE)
+pdf(file = "gitignore/fig1rev.pdf",  
+    width = 10, # The width of the plot in inches
+    height = 8) # The height of the plot in inches
+
+plot_grid(bot, fig1c, nrow=2, rel_heights = c(0.5, 0.5), labels=c("", "C"))
+# Step 3: Run dev.off() to create the file!
+dev.off()
+
+
+
+##  fig 2
+if(file.exists("gitignore/fig2.pdf") == FALSE)
+pdf(file = "gitignore/fig2.pdf",  
+    width = 7, # The width of the plot in inches
+    height = 8) # The height of the plot in inches
+fig2
+dev.off()
+
+
+
+## suppl. fig 1
+if(file.exists("gitignore/suppl_fig.pdf") == FALSE)
+pdf(file = "gitignore/suppl_fig.pdf",   # The directory you want to save the file in
+    width = 6, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+par(mfrow=c(1,3))
+par(mar=c(3,3,1,1))
+par(mgp=c(1.5,0.5,0))
+plot.gam(model_all_nl, ylab=c('Partial residuals'))
+
+dev.off()
+
+## suppl. fig 2
+if(file.exists("gitignore/suppl_fig2.pdf") == FALSE){
+  ggsave("gitignore/suppl_fig2.pdf", 
+         plot = suppl_fig2, width = 6, height = 6, units = "in")
+}
+
+## suppl. fig 3
+if(file.exists("gitignore/suppl_fig3.pdf") == FALSE){
+  ggsave("gitignore/suppl_fig3.pdf", 
+         plot = suppl_fig3, width = 6, height = 6, units = "in")
+}
+```
+
+# Reproducibility
+
+```{r, collapse=TRUE}
+sessionInfo()
+```
