@@ -75,7 +75,7 @@ Institute for Clinical and Experimental Medicine, Prague, Czech Republic
 
 <br>
 
-This is statistical report of the study that is currently *provisionally accepted* at the [*American Journal of TRANSPLANTATION*](https://onlinelibrary.wiley.com/journal/16006143)
+This is statistical report of the study that is currently *accepted* at the [*American Journal of TRANSPLANTATION*](https://onlinelibrary.wiley.com/journal/16006143)
 
 <br>
 
@@ -187,13 +187,15 @@ Similarly, if we incorporate external knowledge, like insights from a previous s
 
 Mathematically, $P(\beta | \mathbf{X}, Y)$ is proportional to the product of the prior distribution $P(\beta)$ and the likelihood $P(Y | \mathbf{X}, \beta)$:
 
+<br>
+
 $$ 
 P(\beta | \mathbf{X}, Y) \propto P(Y | \mathbf{X}, \beta) \times P(\beta)
 $$
 
 <br>
 
-Before fitting Bayesian models, we standardized all numerical predictors by 2 standard deviations (SD). This ensures that all predictors are on the same scale, allowing the establishment of a uniform *prior* for all predictors and ensuring a consistent level of shrinkage for each one [@gelman2008].
+Before fitting Bayesian models, we standardized all numerical predictors by 2 standard deviations (SD). This ensures that all predictors are on the same scale, allowing the establishment of a single *prior* for all predictors and ensuring a consistent level of shrinkage for each one [@gelman2008].
 
 *Priors* for all variables except vaccination timing were established as Gaussian priors centered around zero effect, $\mu = 0$, and with $\sigma = 5$. For the effect of vaccination timing, we drew guidance from recent findings by [@lin2023], who reported a 3.81-fold increase in seroconversion odds (95% CI: 1.59 to 9.15) on the 28th day post-vaccination and a 2.54-fold increase (CI: 1.15 to 5.61) on the 56th day post-vaccination for morning vaccinations, on patients with renal failure.
 
@@ -838,7 +840,7 @@ suppl_fig3_alt
 
 ## Explorative (non-Bayesian) models
 
-### Does interaction between two doses timings matter? `suppl_table1`
+### Does interaction between timings of two doses matter? `suppl_table1`
 
 ```{r, collapse=TRUE}
 # no interaction
@@ -898,7 +900,7 @@ suppl_table1
 
 Inclusion of interaction likely does not improve out-of-sample predictive accuracy and can be avoided
 
-### Is the time effect non-linear? `suppl_figure1`
+### Is the effect of vaccination timing non-linear? `suppl_figure1`
 
 Lets look if inclusion of non-linear morning vaccination effect improve the fit and out-of-sample predictive accuracy
 
@@ -937,7 +939,7 @@ Non-linear effect was shrunk by penalized spline regression to straight line. Mo
 
 On the other hand, the effect of `days_after_2nd_dose` may be non-linear, although the evidence is not very strong
 
-### Does the time of blood sampling for the IgG levels measurements?
+### Does the time of blood sampling for the IgG levels measurements matters?
 
 Even the IgG levels may show circadian rhythms and the timing of the blood collection thus may matter.
 
@@ -967,7 +969,7 @@ AIC(model_all, model_all_st)
 
 There is no sign that time of blood sampling affects the probability of seroconversion.
 
-### Should MMF dose or immunosuppresant levels be included?
+### Should MMF dose or serum levels of immunosuppresants be included?
 
 `mmf_total`, `tacrolimus_level` and `cyclospirin_level` will be included as interaction with (not)taking a given immunosupressant
 
@@ -1199,11 +1201,11 @@ summary(model_12)
 
 The threshold for the "afternoon" definition has a relatively large effect in terms of estimated effect size and the clarity of the vaccination timing effect.
 
-In summary, final models will be fitted without interaction between the two vaccination doses. Vaccination times as continuous predictors will be fitted as linear-effects predictors. Interaction between timings of two doses will not be considered.
+In summary, final models will be fitted without interaction between the timings of two vaccination doses. Vaccination times will be included as either continuous variable with linear effect or in dichotomized form. Interaction between timings of two doses will not be included to the final models. 
 
 ## Main (Bayesian) model
 
-As stated above, we primarily use model with *informative priors* for the effect of vaccination timing. The *informative priors* use previously acquired information, e.g. results from previous studies [@lin2023], and use it for informed inference.
+As stated above, we primarily use model with (weakly) *informative priors* for the effect of vaccination timing. The *informative priors* use previously acquired information, e.g. results from previous studies [@lin2023], and use it for more informed inference.
 
 As 2 SD of continuous vaccination time is only 1.25 times larger than difference between the mean times of vaccination in the morning vs. afternoon, and we expect similar distribution also in the previous study [@lin2023], we will adopt our prior distribution directly on the basis of the results of *Lin et al.* [@lin2023]. The prior will be relatively very wide, accounting for limited comparability of study designs and patient population between our study vs. *Lin et al.* [@lin2023].
 
