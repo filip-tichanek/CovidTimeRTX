@@ -2,7 +2,7 @@
 
 ## Statistical Report
 
-Statistical report and code for the publication *Morning Administration Enhances Humoral Response to SARS-CoV-2 Vaccination in Kidney Transplant Recipients*, currently under review in the journal  *American Journal of Transplantation*
+Statistical report and code for the publication *Morning Administration Enhances Humoral Response to SARS-CoV-2 Vaccination in Kidney Transplant Recipients*, accepted at the journal  *American Journal of Transplantation*
 
 
 
