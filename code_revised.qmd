@@ -38,7 +38,6 @@ monobackgroundcolor: "#3B3B3B"
 knitr::opts_chunk$set(collapse = TRUE)
 ```
 
-
 ```{css, echo=FALSE}
 code.sourceCode {
   font-size: 0.85em;
@@ -65,7 +64,7 @@ body {
 
 **Authors' affiliations**:
 
-[Ivan Zahradka^1^, Filip Tichanek^2^, Maria Magicova^1^, Istvan Modos^2^, Ondrej Viklicky^1^, Vojtech Petr^1^ ]{style="font-size: larger;"}
+[Ivan Zahradka^1^, Filip Tichanek^2^, Maria Magicova^1^, Istvan Modos^2^, Ondrej Viklicky^1^, Vojtech Petr^1^]{style="font-size: larger;"}
 
 ^1^Department of Nephrology, Transplantation Center
 
@@ -73,11 +72,23 @@ body {
 
 Institute for Clinical and Experimental Medicine, Prague, Czech Republic
 
-<br>
-
-This is statistical report of the study that is currently *accepted* at the [*American Journal of TRANSPLANTATION*](https://onlinelibrary.wiley.com/journal/16006143)
 
 <br>
+
+**Original publication**
+
+This is statistical report of for the [publication](https://doi.org/10.1016/j.ajt.2024.03.004) *Morning Administration Enhances Humoral Response to SARS-CoV-2 Vaccination in Kidney Transplant Recipients* [@Zahradka2024], published in the [*American Journal of Transplantation*](https://www.amjtransplant.org/)
+
+<br>
+
+[When using this code, cite original publication:]{style="font-size: larger;"}
+
+::: {style="background-color: #2D2D31; padding: 10px; margin: 10px 0; border-left: 3px solid #ccc;"}
+Zahradka, I., Tichanek, F., Magicova, M., Modos, I., Viklicky, O., & Petr, V. (2024). Morning administration enhances humoral response to SARS-CoV-2 vaccination in kidney transplant recipients. *American Journal of Transplantation*. <a href="https://doi.org/10.1016/j.ajt.2024.03.004">https://doi.org/10.1016/j.ajt.2024.03.004</a>
+:::
+
+<br>
+
 
 Original GitHub repository: <https://github.com/filip-tichanek/CovidTimeRTX>
 
@@ -91,7 +102,7 @@ All patients received two vaccine doses, with a time interval of 20-29 days betw
 
 The impact of vaccination timing was adjusted to account for other covariates known to influence the probability of anti-COVID seroconversion in the population of renal failure patients [@lin2023] or KTRs [@magicova2022].
 
-The study population comprises COVID-naive patients who have undergone kidney transplantation, with varying durations between the transplantation and anti-COVID vaccination. Inclusion criteria stipulated that only patients receiving two doses of mRNA vaccine in our institution, with a time interval between the two doses ranging from 20 to 29 days, were considered (a total of 553 patients).
+The study population comprises COVID-naive patients who have undergone kidney transplantation, with varying duration between the transplantation and anti-COVID vaccination. Inclusion criteria stipulated that only patients receiving two doses of mRNA vaccine in our institution, with a time interval between the two doses ranging from 20 to 29 days, were considered (a total of 553 patients).
 
 As the time between the 2nd dose and blood sampling differed across patients, the time between the 2nd dose and blood collection (for IgG measurements) was also adjusted. Thus, it was included as a covariate with non-linear effect.
 
@@ -99,7 +110,7 @@ Timings of vaccinations were primarily treated as continuous numerical variable.
 
 <br>
 
-Everything was done in R, version 4.3.2[@Rcomp]
+Everything was done in R, version 4.3.2 [@Rcomp]
 
 <br>
 
@@ -699,7 +710,7 @@ suppressMessages({
   })
 ```
 
-### Histogram of vaccination times (`suppl_fig2')
+### Histogram of vaccination times (\`suppl_fig2')
 
 Histograms show counts
 
@@ -728,6 +739,7 @@ suppl_fig2count
 ```
 
 An alternative - histograms show percentages of patients
+
 ```{r, warning=FALSE, message=FALSE, fig.height=7, fig.width=7}
 cole <- c('#CD7006', '#0028F0')
 
@@ -792,9 +804,7 @@ suppl_fig2 <- plot_grid(prow, legend_b, ncol = 2, rel_widths = c(1, .2))
 suppl_fig2
 ```
 
-
-
-### Histogram of antibody levels (`suppl_fig3')
+### Histogram of antibody levels (\`suppl_fig3')
 
 ```{r, warning=FALSE, message=FALSE, fig.height=6, fig.width=4.3}
 suppl_fig3 <- findat2 %>% 
@@ -816,6 +826,7 @@ suppl_fig3
 ```
 
 Alternative
+
 ```{r, warning=FALSE, message=FALSE, fig.height=7, fig.width=7}
 suppl_fig3_alt <- findat2 %>% 
   select(antibody_level, afternoon1, afternoon2, afternoon_comb, seroconversion) %>%
@@ -833,10 +844,6 @@ suppl_fig3_alt <- findat2 %>%
             color = "grey20") 
 suppl_fig3_alt
 ```
-
-
-
-
 
 ## Explorative (non-Bayesian) models
 
@@ -1201,7 +1208,7 @@ summary(model_12)
 
 The threshold for the "afternoon" definition has a relatively large effect in terms of estimated effect size and the clarity of the vaccination timing effect.
 
-In summary, final models will be fitted without interaction between the timings of two vaccination doses. Vaccination times will be included as either continuous variable with linear effect or in dichotomized form. Interaction between timings of two doses will not be included to the final models. 
+In summary, final models will be fitted without interaction between the timings of two vaccination doses. Vaccination times will be included as either continuous variable with linear effect or in dichotomized form. Interaction between timings of two doses will not be included to the final models.
 
 ## Main (Bayesian) model
 
@@ -2350,14 +2357,15 @@ par(mgp=c(1.5,0.5,0))
 plot.gam(model_all_nl, ylab=c('Partial residuals'))
 ```
 
-
 ### Suppl. Figure 2
+
 ```{r, collapse=TRUE, fig.height=6, fig.width=6, warning=FALSE, message=FALSE}
 #| fig-cap: "Supplementary Figure 2. HHistogram displaying vaccination time distribution for the 1st (left) and the 2nd (right) vaccine doses, separately for patients with successful (top) and unsuccessful (bottom) seroconversion. The x-axis shows the vaccination time in hours, while the y-axis shows the percentages of patients vaccinated in the corresponding time bin"
 suppl_fig2
 ```
 
 ### Suppl. Figure 3
+
 ```{r, warning=FALSE, message=FALSE, fig.height=6, fig.width=4.3, message=FALSE}
 #| fig-cap: "Supplementary Figure 3. The distribution of SARS-CoV-2 IgG antibody levels in patients with successful seroconversion. Note: Y-axis is on a log10 scale, showing original antibody level values. Boxplot shows median  (line inside box), interquartile range (IQR, box) and range within 1.5*IQR (whiskers). Individual points are data of individual patients with successful seroconversion."
 suppl_fig3
