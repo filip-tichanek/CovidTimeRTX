@@ -2,7 +2,7 @@
 
 ## Statistical Report
 
-Statistical report and code for the [publication](doi.org/10.1016/j.ajt.2024.03.004) *Morning Administration Enhances Humoral Response to SARS-CoV-2 Vaccination in Kidney Transplant Recipients*, published in the [*American Journal of Transplantation*](https://www.amjtransplant.org/)
+Statistical report and code for the [publication](https://doi.org/10.1016/j.ajt.2024.03.004) *Morning Administration Enhances Humoral Response to SARS-CoV-2 Vaccination in Kidney Transplant Recipients*, published in the [*American Journal of Transplantation*](https://www.amjtransplant.org/)
 
 
 This page shows an [HTML report](https://filip-tichanek.github.io/CovidTimeRTX/) (with code outputs and data summaries) as well as raw R code (a .qmd file).
