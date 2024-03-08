@@ -9,7 +9,7 @@ This page shows an [HTML report](https://filip-tichanek.github.io/CovidTimeRTX/)
 
 To explore the report, see https://filip-tichanek.github.io/CovidTimeRTX/
 
-When using this code, cite original publication:
+When using this code, **cite original publication**:
 > Zahradka, I., Tichanek, F., Magicova, M., Modos, I., Viklicky, O., & Petr, V. (2024). Morning administration enhances humoral response to SARS-CoV-2 vaccination in kidney transplant recipients. *American Journal of Transplantation*. [https://doi.org/10.1016/j.ajt.2024.03.004](https://doi.org/10.1016/j.ajt.2024.03.004)
 
 
